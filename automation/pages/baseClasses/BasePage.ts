@@ -3,10 +3,9 @@ import { Page, Locator, expect } from '@playwright/test';
 /**
  * Base class for Page Object Models in the booking-flow suite.
  *
- * Mirrors the `primelabs-automation/pages/baseClasses/BasePage.ts`
- * contract: every page exposes an abstract `open()`, and the base
- * provides shared loading-state / toast / navigation utilities so
- * child pages don't have to reimplement them.
+ * Every page exposes an abstract `open()`, and the base provides
+ * shared loading-state / toast / navigation utilities so child
+ * pages don't have to reimplement them.
  *
  * Specs never instantiate this class directly — they use one of the
  * concrete Page Object fixtures (e.g. `bookingPage`) exposed through

@@ -10,7 +10,7 @@
  *
  * Convention notes:
  * - URL suffixes live in `bookingConfig.api.*` (back-end) / `bookingConfig.paths.*`
- *   (front-end) to mirror the primelabs-automation split.
+ *   (front-end) so API and UI routing concerns stay distinct.
  * - Helpers never call `expect()` — specs own assertions.
  */
 import type { ApiRequestFn, ApiRequestResponse } from '../../fixtures/api/api-types';
