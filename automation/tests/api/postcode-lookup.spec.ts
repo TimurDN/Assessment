@@ -1,10 +1,3 @@
-/**
- * API contract & behaviour tests for `POST /api/postcode/lookup`.
- *
- * Each `describe` block covers one concern (happy path, normalization,
- * validation, error handling, method allow-list) so failures surface a
- * specific contract violation rather than a generic "postcode lookup broken".
- */
 import { expect, test } from '../../fixtures/pom/test-options';
 import { bookingConfig } from '../../config/booking';
 import {
@@ -12,212 +5,225 @@ import {
     type PostcodeLookupResponse,
 } from '../../fixtures/api/schemas/booking/postcode';
 import {
-    ApiErrorSchema,
-    type ApiError,
+    APIErrorSchema,
+    type APIError,
 } from '../../fixtures/api/schemas/util/common';
-import { resetRetryCounter } from '../../helpers/booking/test-reset';
-import { lookupPostcode } from '../../helpers/booking/booking';
-import { ADDRESS_COUNTS, POSTCODES } from '../../test-data/booking/booking';
 import {
-    invalidStringValues,
+    invalidString,
     malformedPostcodes,
     unsupportedMethods,
 } from '../../fixtures/api/invalid-types';
+import { lookupPostcode } from '../../helpers/booking/booking';
+import { resetRetryCounter } from '../../helpers/booking/test-reset';
+import bookingData from '../../test-data/booking/booking.json';
+import postcodeValidation from '../../test-data/booking/postcodeValidation.json';
 
-const ENDPOINT = bookingConfig.paths.POSTCODE_LOOKUP;
+const ENDPOINT = bookingConfig.api.POSTCODE_LOOKUP;
 
-test.describe('POST /api/postcode/lookup', () => {
-    test.describe('Happy path', () => {
-        test(
-            'SW1A 1AA returns the full 13-entry address book with correct shape',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
+// ═══════════════════════════════════════════════════════════════
+// POST /api/postcode/lookup - Happy path
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/postcode/lookup - Happy path', () => {
+    test(
+        'Verify POST /api/postcode/lookup returns 200 with the full SW1A 1AA address book',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
+                apiRequest,
+                bookingData.postcodes.HAPPY,
+            );
+
+            expect(status).toBe(200);
+            expect(PostcodeLookupResponseSchema.parse(body)).toBeTruthy();
+            expect(body.postcode).toBe('SW1A 1AA');
+            expect(body.addresses).toHaveLength(bookingData.addressCounts.SW1A);
+            expect(body.addresses[0]).toEqual(bookingData.firstAddress.SW1A);
+            expect(body.addresses.at(-1)).toEqual(bookingData.lastAddress.SW1A);
+        },
+    );
+
+    test(
+        'Verify POST /api/postcode/lookup returns 200 with an empty address list for EC1A 1BB',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
+                apiRequest,
+                bookingData.postcodes.EMPTY,
+            );
+
+            expect(status).toBe(200);
+            expect(PostcodeLookupResponseSchema.parse(body)).toBeTruthy();
+            expect(body.postcode).toBe('EC1A 1BB');
+            expect(body.addresses).toEqual([]);
+        },
+    );
+
+    test(
+        'Verify POST /api/postcode/lookup honours the M1 1AE fixture latency and returns Manchester addresses',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const startedAt = Date.now();
+            const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
+                apiRequest,
+                bookingData.postcodes.SLOW,
+            );
+            const elapsedMs = Date.now() - startedAt;
+
+            expect(status).toBe(200);
+            expect(PostcodeLookupResponseSchema.parse(body)).toBeTruthy();
+            expect(elapsedMs).toBeGreaterThanOrEqual(1000);
+            expect(body.addresses).toHaveLength(bookingData.addressCounts.M1);
+            for (const address of body.addresses) {
+                expect(address.city).toBe('Manchester');
+            }
+        },
+    );
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/postcode/lookup - Normalization
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/postcode/lookup - Normalization', () => {
+    test(
+        'Verify POST /api/postcode/lookup normalizes lowercase, no-space, and extra-space variants',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const variant of postcodeValidation.normalizationVariants) {
                 const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
                     apiRequest,
-                    POSTCODES.HAPPY,
+                    variant,
                 );
+                expect(status, `Variant "${variant}" should return 200`).toBe(200);
+                expect(PostcodeLookupResponseSchema.parse(body)).toBeTruthy();
+                expect(body.postcode).toBe('SW1A 1AA');
+                expect(body.addresses).toHaveLength(
+                    bookingData.addressCounts.SW1A,
+                );
+            }
+        },
+    );
+});
 
-                expect(status).toBe(200);
-                const parsed = PostcodeLookupResponseSchema.parse(body);
+// ═══════════════════════════════════════════════════════════════
+// POST /api/postcode/lookup - Validation
+// ═══════════════════════════════════════════════════════════════
 
-                await test.step('Echoes back the normalized postcode', async () => {
-                    expect(parsed.postcode).toBe('SW1A 1AA');
-                });
+test.describe('POST /api/postcode/lookup - Validation', () => {
+    test(
+        'Verify POST /api/postcode/lookup returns 400 MISSING_POSTCODE for empty, whitespace, or non-string inputs',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const value of invalidString) {
+                const { status, body } = await lookupPostcode<APIError>(
+                    apiRequest,
+                    value,
+                );
+                expect(
+                    status,
+                    `Input ${JSON.stringify(value)} should be 400`,
+                ).toBe(400);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('MISSING_POSTCODE');
+            }
+        },
+    );
 
-                await test.step('Returns the canonical address list', async () => {
-                    expect(parsed.addresses).toHaveLength(ADDRESS_COUNTS.SW1A);
-                    expect(parsed.addresses[0]).toEqual({
-                        id: 'addr_sw1a_01',
-                        line1: '10 Downing Street',
-                        city: 'London',
-                    });
-                    expect(parsed.addresses.at(-1)).toEqual({
-                        id: 'addr_sw1a_13',
-                        line1: 'Birdcage Walk',
-                        city: 'London',
-                    });
-                });
+    test(
+        'Verify POST /api/postcode/lookup returns 422 INVALID_POSTCODE for strings that fail the UK regex',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const postcode of malformedPostcodes) {
+                const { status, body } = await lookupPostcode<APIError>(
+                    apiRequest,
+                    postcode,
+                );
+                expect(status, `"${postcode}" should return 422`).toBe(422);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('INVALID_POSTCODE');
+            }
+        },
+    );
 
-                await test.step('Every address has populated fields', async () => {
-                    for (const address of parsed.addresses) {
-                        expect(address.id).toMatch(/^addr_sw1a_\d{2}$/);
-                        expect(address.line1.length).toBeGreaterThan(0);
-                        expect(address.city).toBe('London');
-                    }
-                });
-            },
-        );
+    test(
+        'Verify POST /api/postcode/lookup returns 400 INVALID_JSON for a body that is not parseable JSON',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const { status, body } = await apiRequest<APIError>({
+                method: 'POST',
+                url: ENDPOINT,
+                baseUrl: bookingConfig.apiUrl,
+                rawBody: Buffer.from('{not-json'),
+            });
 
-        test(
-            'EC1A 1BB returns 200 with an empty address list (empty-state fixture)',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
+            expect(status).toBe(400);
+            expect(APIErrorSchema.parse(body)).toBeTruthy();
+            expect(body.error).toBe('INVALID_JSON');
+        },
+    );
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/postcode/lookup - Retry fixture (BS1 4DJ)
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/postcode/lookup - Retry fixture', () => {
+    test.beforeEach(async ({ apiRequest }) => {
+        await resetRetryCounter(apiRequest, bookingData.postcodes.RETRY);
+    });
+
+    test(
+        'Verify BS1 4DJ returns 500 UPSTREAM_ERROR on first call and 200 on retry',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            await test.step('First call fails with 500 UPSTREAM_ERROR', async () => {
+                const { status, body } = await lookupPostcode<APIError>(
+                    apiRequest,
+                    bookingData.postcodes.RETRY,
+                );
+                expect(status).toBe(500);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('UPSTREAM_ERROR');
+                expect(body.message).toMatch(/retry/i);
+            });
+
+            await test.step('Retry succeeds with 200 and Bristol addresses', async () => {
                 const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
                     apiRequest,
-                    POSTCODES.EMPTY,
+                    bookingData.postcodes.RETRY,
                 );
-
                 expect(status).toBe(200);
-                const parsed = PostcodeLookupResponseSchema.parse(body);
-                expect(parsed.postcode).toBe('EC1A 1BB');
-                expect(parsed.addresses).toEqual([]);
-            },
-        );
-
-        test(
-            'M1 1AE returns 200 after the fixture latency (~1.2s) with Manchester addresses',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                const startedAt = Date.now();
-                const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
-                    apiRequest,
-                    POSTCODES.SLOW,
+                expect(PostcodeLookupResponseSchema.parse(body)).toBeTruthy();
+                expect(body.postcode).toBe('BS1 4DJ');
+                expect(body.addresses).toHaveLength(
+                    bookingData.addressCounts.BS1,
                 );
-                const elapsed = Date.now() - startedAt;
+                expect(body.addresses[0].city).toBe('Bristol');
+            });
+        },
+    );
+});
 
-                expect(status).toBe(200);
-                expect(elapsed, 'Fixture latency must be observable').toBeGreaterThanOrEqual(1000);
+// ═══════════════════════════════════════════════════════════════
+// POST /api/postcode/lookup - Method allow-list
+// ═══════════════════════════════════════════════════════════════
 
-                const parsed = PostcodeLookupResponseSchema.parse(body);
-                expect(parsed.addresses).toHaveLength(ADDRESS_COUNTS.M1);
-                for (const address of parsed.addresses) {
-                    expect(address.city).toBe('Manchester');
-                }
-            },
-        );
-    });
-
-    test.describe('Normalization', () => {
-        test(
-            'Accepts lowercase, no-space, and extra-space variants and normalizes to canonical form',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const variant of ['sw1a 1aa', 'SW1A1AA', '  SW1A   1AA  ']) {
-                    const { status, body } = await lookupPostcode<PostcodeLookupResponse>(
-                        apiRequest,
-                        variant,
-                    );
-                    expect(status, `Variant "${variant}" should succeed`).toBe(200);
-                    const parsed = PostcodeLookupResponseSchema.parse(body);
-                    expect(parsed.postcode).toBe('SW1A 1AA');
-                    expect(parsed.addresses).toHaveLength(ADDRESS_COUNTS.SW1A);
-                }
-            },
-        );
-    });
-
-    test.describe('Validation', () => {
-        test(
-            'Returns 400 MISSING_POSTCODE for empty, whitespace, or non-string inputs',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                const invalid: ReadonlyArray<unknown> = ['', '   ', ...invalidStringValues];
-
-                for (const value of invalid) {
-                    const { status, body } = await lookupPostcode<ApiError>(apiRequest, value);
-                    expect(status, `Input ${JSON.stringify(value)} should be 400`).toBe(400);
-                    const parsed = ApiErrorSchema.parse(body);
-                    expect(parsed.error).toBe('MISSING_POSTCODE');
-                    expect(parsed.message).toMatch(/postcode/i);
-                }
-            },
-        );
-
-        test(
-            'Returns 422 INVALID_POSTCODE for strings that fail the UK format regex',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const postcode of malformedPostcodes) {
-                    const { status, body } = await lookupPostcode<ApiError>(apiRequest, postcode);
-                    expect(status, `"${postcode}" should be 422`).toBe(422);
-                    expect(ApiErrorSchema.parse(body).error).toBe('INVALID_POSTCODE');
-                }
-            },
-        );
-
-        test(
-            'Returns 400 INVALID_JSON when the request body is not parseable JSON',
-            { tag: '@Booking-API' },
-            async ({ request }) => {
-                // Buffer keeps the raw bytes intact; passing a string would
-                // cause Playwright to JSON-encode it into a valid JSON string.
-                const response = await request.post(`${bookingConfig.apiUrl}${ENDPOINT}`, {
-                    data: Buffer.from('{not-json'),
-                    headers: { 'Content-Type': 'application/json' },
-                });
-
-                expect(response.status()).toBe(400);
-                const parsed = ApiErrorSchema.parse(await response.json());
-                expect(parsed.error).toBe('INVALID_JSON');
-            },
-        );
-    });
-
-    test.describe('Retry fixture', () => {
-        test.beforeEach(async ({ apiRequest }) => {
-            await resetRetryCounter(apiRequest, POSTCODES.RETRY);
-        });
-
-        test(
-            'BS1 4DJ fails once with 500 UPSTREAM_ERROR then succeeds on retry',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                await test.step('First call returns 500 UPSTREAM_ERROR', async () => {
-                    const first = await lookupPostcode<ApiError>(apiRequest, POSTCODES.RETRY);
-                    expect(first.status).toBe(500);
-                    const parsed = ApiErrorSchema.parse(first.body);
-                    expect(parsed.error).toBe('UPSTREAM_ERROR');
-                    expect(parsed.message).toMatch(/retry/i);
-                });
-
-                await test.step('Retry returns 200 with Bristol addresses', async () => {
-                    const second = await lookupPostcode<PostcodeLookupResponse>(
-                        apiRequest,
-                        POSTCODES.RETRY,
-                    );
-                    expect(second.status).toBe(200);
-                    const parsed = PostcodeLookupResponseSchema.parse(second.body);
-                    expect(parsed.postcode).toBe('BS1 4DJ');
-                    expect(parsed.addresses).toHaveLength(ADDRESS_COUNTS.BS1);
-                    expect(parsed.addresses[0].city).toBe('Bristol');
-                });
-            },
-        );
-    });
-
-    test.describe('Method allow-list', () => {
-        test(
-            'Rejects GET/PUT/PATCH/DELETE with 405 (Next.js default for undeclared methods)',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const method of [...unsupportedMethods, 'GET'] as const) {
+test.describe('POST /api/postcode/lookup - Method allow-list', () => {
+    test(
+        'Verify POST /api/postcode/lookup rejects GET/PUT/PATCH/DELETE with 405',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const method of [...unsupportedMethods, 'GET'] as const) {
+                await test.step(`${method} ${ENDPOINT} → 405`, async () => {
                     const { status } = await apiRequest({
                         method: method as 'GET' | 'PUT' | 'PATCH' | 'DELETE',
                         url: ENDPOINT,
+                        baseUrl: bookingConfig.apiUrl,
                     });
-                    expect(status, `${method} should be 405`).toBe(405);
-                }
-            },
-        );
-    });
+                    expect(status).toBe(405);
+                });
+            }
+        },
+    );
 });
