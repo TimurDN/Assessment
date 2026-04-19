@@ -1,11 +1,9 @@
 import { expect, test } from '../../fixtures/pom/test-options';
+import type { SkipSize } from '../../fixtures/api/schemas/booking/skips';
 import bookingData from '../../test-data/booking/booking.json';
 
 const MS = {
-    page: 15_000,
-    toast: 10_000,
     button: 20_000,
-    grid: 15_000,
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -52,7 +50,7 @@ test.describe('E2E — Heavy waste booking flow', () => {
                 'THEN: 2-yard and 3-yard skips are disabled with the heavy-waste reason',
                 async () => {
                     await bookingPage.verifySkipsListed(bookingData.skipCatalogueSize);
-                    for (const size of bookingData.heavyDisabledSkips) {
+                    for (const size of bookingData.heavyDisabledSkips as SkipSize[]) {
                         await bookingPage.verifySkipDisabled(
                             size,
                             bookingData.disabledReasons.HEAVY_WASTE,
@@ -64,7 +62,7 @@ test.describe('E2E — Heavy waste booking flow', () => {
             await test.step(
                 'AND: Area-disabled skips still carry their original reason',
                 async () => {
-                    for (const size of bookingData.defaultDisabledSkips) {
+                    for (const size of bookingData.defaultDisabledSkips as SkipSize[]) {
                         await bookingPage.verifySkipDisabled(
                             size,
                             bookingData.disabledReasons.NOT_IN_AREA,

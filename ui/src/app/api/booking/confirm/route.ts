@@ -5,16 +5,13 @@ import {
   generateBookingId,
   keyPostcode,
 } from "@/lib/fixtures";
+import {
+  IDEMPOTENCY_WINDOW_MS,
+  getRecentBooking,
+  recordBooking,
+} from "@/lib/bookings-store";
 
 export const dynamic = "force-dynamic";
-
-/**
- * In-memory idempotency / double-submit guard. Keyed on a stable signature
- * of the booking payload. Lives for the lifetime of the server process,
- * which is sufficient for the take-home demo.
- */
-const recentBookings = new Map<string, { bookingId: string; at: number }>();
-const IDEMPOTENCY_WINDOW_MS = 30_000;
 
 function signature(payload: Record<string, unknown>): string {
   return JSON.stringify([
@@ -130,7 +127,7 @@ export async function POST(request: Request) {
   }
 
   const sig = signature(b as Record<string, unknown>);
-  const existing = recentBookings.get(sig);
+  const existing = getRecentBooking(sig);
   const now = Date.now();
   if (existing && now - existing.at < IDEMPOTENCY_WINDOW_MS) {
     return NextResponse.json({
@@ -141,6 +138,6 @@ export async function POST(request: Request) {
   }
 
   const bookingId = generateBookingId();
-  recentBookings.set(sig, { bookingId, at: now });
+  recordBooking(sig, bookingId);
   return NextResponse.json({ status: "success", bookingId });
 }

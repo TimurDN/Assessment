@@ -72,7 +72,7 @@ export default function Home() {
             </code>
             .
           </span>
-          <span className="text-muted-foreground/80">
+          <span className="text-muted-foreground">
             Built with Next.js · Tailwind · shadcn/ui
           </span>
         </div>

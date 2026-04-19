@@ -1,11 +1,9 @@
 import { expect, test } from '../../fixtures/pom/test-options';
+import type { SkipSize } from '../../fixtures/api/schemas/booking/skips';
 import bookingData from '../../test-data/booking/booking.json';
 
 const MS = {
     page: 15_000,
-    toast: 10_000,
-    button: 20_000,
-    grid: 15_000,
 } as const;
 
 // ═══════════════════════════════════════════════════════════════
@@ -57,7 +55,7 @@ test.describe('E2E — General waste booking flow', () => {
                 `THEN: The skip catalogue renders with the two largest disabled`,
                 async () => {
                     await bookingPage.verifySkipsListed(bookingData.skipCatalogueSize);
-                    for (const size of bookingData.defaultDisabledSkips) {
+                    for (const size of bookingData.defaultDisabledSkips as SkipSize[]) {
                         await bookingPage.verifySkipDisabled(
                             size,
                             bookingData.disabledReasons.NOT_IN_AREA,

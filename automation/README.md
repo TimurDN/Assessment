@@ -7,12 +7,13 @@ Playwright + TypeScript suite validating the booking-flow app.
 ```bash
 # From this directory
 npm install
-npx playwright install chromium webkit
-npm test                  # headless, all projects
-npm run test:ui           # Playwright UI mode
-npm run test:headed       # headed browsers
-npm run test:debug        # step-through debug
-npm run report            # open last HTML report
+npm run install-browsers    # chromium + webkit + deps
+npm test                    # chromium-desktop (default)
+npm run test:all-browsers   # chromium + webkit + mobile-chrome
+npm run test:ui             # Playwright UI mode
+npm run test:headed         # headed browsers
+npm run test:debug          # step-through debug
+npm run report              # open last HTML report
 ```
 
 The config auto-starts the Next.js dev server on `http://localhost:3000` via `webServer` unless `CI=1` is set (CI expects the app to already be running).
