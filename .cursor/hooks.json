@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "type": "prompt",
+        "prompt": "Review what you changed in this session. If you created or significantly modified test spec files, helpers, schemas, or page objects, update the relevant .cursor/rules/ file: api-tests.mdc for API tests, ui-tests.mdc for E2E/functional tests. Add new endpoint context, test inventory, known bugs, or cleanup patterns to the appropriate section. Here is the hook input: $ARGUMENTS",
+        "timeout": 30
+      }
+    ]
+  }
+}

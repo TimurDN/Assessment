@@ -1,0 +1,67 @@
+---
+description: Always-on project identity — tells the agent what this project is and where to find detailed rules
+alwaysApply: true
+---
+
+# SkipWise Booking — QA Automation Framework
+
+Playwright v1.56 + TypeScript. Next.js 16 booking flow (four-step wizard over four API endpoints). Single-repo layout: the Next.js app lives in `ui/`, the Playwright suite in `automation/`.
+
+## Rule Index
+
+Load the relevant rule **before** writing or modifying any test code:
+
+- **API tests** (`automation/tests/api/`): read `.cursor/rules/api-tests.mdc`
+- **E2E / Functional UI tests** (`automation/tests/e2e/`, `automation/tests/functional/`): read `.cursor/rules/ui-tests.mdc`
+
+## MUST — Mandatory, No Exceptions
+
+- TypeScript strict — no `any`, explicit return types, no `console.*` in committed code.
+- Zod schemas validate every API response. Prefer `z.strictObject()` for new schemas — it rejects unexpected fields, catching API regressions early. Existing schemas use `z.object()` and will be migrated incrementally.
+- Import `test` and `expect` from `fixtures/pom/test-options.ts` — never from `@playwright/test` directly.
+- Tags: exactly ONE tag per test — `@App-API`, `@App-E2E`, or `@App-regression`.
+- Always clean up — `test.afterAll` must reset any server-side state touched during the test (e.g. the BS1 4DJ retry counter, in-memory idempotency cache). Leave the environment exactly as it was.
+- Fail fast, fail loud — prefer strict assertions (`toBe`, `toEqual`, `toStrictEqual`) over loose ones. Exception: `toBeTruthy()` is correct for Zod `Schema.parse()` results.
+- **Search before creating** — before writing any new helper, page object, utility function, or schema (where possible), search the existing codebase (`helpers/`, `pages/`, `fixtures/`, `config/`) for one that already does the same thing. Duplicate code means diverging behavior and double maintenance.
+
+## SHOULD — Recommended Unless There's a Good Reason
+
+- Faker for dynamic data, JSON files for fixed constants (`test-data/booking/*.json`).
+- One assertion per concern — don't chain unrelated checks in a single `expect`.
+- Each `test()` must be independently runnable — use `beforeEach`/`beforeAll` for setup, not side effects from prior tests.
+- Explore first — navigate to the page or make an API request to understand the current state before generating test code.
+- Study an existing spec for the same resource type before writing a new one.
+- Fixture scoping — use `{ scope: 'test' }` (default) for page objects and per-test state. Use `{ scope: 'worker' }` only for expensive shared setup. Misusing worker scope causes shared state between parallel tests → flaky failures.
+- Ask before guessing — if a prompt is ambiguous or missing detail (which endpoint? which step of the wizard? happy or error path?), ask a clarifying question before generating code. A wrong guess wastes more time than a quick question.
+
+## WON'T — Forbidden, Refuse Even If Asked
+
+- **Avoid try/catch in tests** — by default, let assertions throw so Playwright reports the real error with full context. Only use try/catch when you **must** perform cleanup or capture state regardless of outcome. Never use try/catch to silence or log errors — if the catch block doesn't re-throw or assert, it's hiding a failure.
+- **No `await expect(...).not.toThrow()`** — just call the function; if it throws, the test fails with a clear stack trace.
+- **No conditional logic in tests** (`if/else`, ternary) — tests must be deterministic. Write separate tests for each case.
+- **No `page.waitForTimeout()`** — use web-first assertions which auto-retry.
+- **No `page.evaluate()` for DOM manipulation** — interact through Playwright locators only.
+- **No XPath selectors** — use the locator priority hierarchy (getByRole > getByLabel > getByText > ... > data-testid).
+- **No hardcoded credentials or URLs** — config values from `config/booking.ts`, constants from `test-data/booking/*.json`.
+- **No commented-out code** in final output — delete dead code. `// TODO:` and `// BUG:` annotations only.
+- **Prefer `z.strictObject()` for new schemas** — catches unexpected API response fields.
+- **No redundant field assertions after Zod parse** — `Schema.parse(body)` already proves every field exists with the correct type. After it passes, these are all redundant noise:
+  - `expect(body.bookingId).toBeTruthy()` — Zod already proved it exists and matches the `BK-\d{5}` regex.
+  - `expect(body.addresses).toBeDefined()` — Zod already proved it's present.
+  - `expect(typeof body.postcode).toBe("string")` — Zod already proved the type.
+  - `expect(Number.isInteger(body.price)).toBe(true)` — Zod already proved it's an integer.
+  - Only assert **business logic values**: `expect(body.postcode).toBe("SW1A 1AA")`, `expect(body.status).toBe("success")`.
+
+## Verification Standard
+
+When asked to verify, review, or confirm code is correct — **do not skim and say "looks good."** Follow this process:
+
+1. **Re-read the actual file(s)** — do not rely on memory or prior context. Read the current state from disk.
+2. **Check against the relevant rule file** — load `api-tests.mdc` or `ui-tests.mdc` and verify every applicable convention is followed.
+3. **Run linter checks** on all modified files.
+4. **List every issue found** — no matter how minor. Do not fix silently and then claim "all good."
+5. **After fixing, re-read the file again** to confirm the fix didn't introduce new issues. Do not declare "done" based on what you think you wrote — verify what's actually on disk.
+6. **Run the tests.** Execute the spec file(s) you created or modified. Do not declare "done" until the tests pass. If a test fails, fix it and re-run. Report the actual test results — never assume they pass.
+7. **Only say "all good" when tests pass and you have re-read the final state with zero issues.** If you're unsure about something, say so — never default to "looks fine."
+
+The bar: if the user asks you to check again after you said "all good," you should find **nothing new**. Finding errors on a second pass means the first pass was lazy.
