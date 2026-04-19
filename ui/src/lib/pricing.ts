@@ -49,7 +49,7 @@ export function computePriceBreakdown(state: BookingState): PriceBreakdown | nul
 
   const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
   const vat = Math.round(subtotal * VAT_RATE);
-  const total = subtotal + vat;
+  const total = subtotal;
 
   return { lines, subtotal, vatRate: VAT_RATE, vat, total };
 }
