@@ -160,26 +160,26 @@
   /* Subtle architectural dot grid (delivery-route vibe). */
   .bg-dotgrid {
     background-image: radial-gradient(
-      color-mix(in oklch, var(--color-primary) 12%, transparent) 1px,
+      color-mix(in oklch, var(--color-primary) 7%, transparent) 1px,
       transparent 1px
     );
-    background-size: 28px 28px;
+    background-size: 32px 32px;
     background-position: 0 0;
     mask-image: radial-gradient(
-      ellipse 80% 80% at 50% 30%,
-      black 40%,
-      transparent 75%
+      ellipse 70% 60% at 50% 20%,
+      black 20%,
+      transparent 70%
     );
     -webkit-mask-image: radial-gradient(
-      ellipse 80% 80% at 50% 30%,
-      black 40%,
-      transparent 75%
+      ellipse 70% 60% at 50% 20%,
+      black 20%,
+      transparent 70%
     );
   }
 }
 
 /* -------------------------------------------------------------------
- * Animated background layers ("aurora" + floating skip silhouettes).
+ * Animated "aurora" background layer.
  * Each keyframe moves GPU-friendly properties (transform, opacity) only.
  * Motion is gated on `prefers-reduced-motion: no-preference` so users
  * with the OS motion-reduction flag get a static backdrop.
@@ -188,76 +188,47 @@
 .aurora-blob {
   position: absolute;
   border-radius: 9999px;
-  filter: blur(80px);
-  opacity: 0.55;
+  filter: blur(90px);
+  opacity: 0.35;
   will-change: transform, opacity;
 }
 
 .aurora-blob-1 {
-  top: -12%;
-  left: -8%;
-  width: 42rem;
-  height: 42rem;
+  top: -18%;
+  left: -10%;
+  width: 38rem;
+  height: 38rem;
   background: radial-gradient(
     circle at 30% 30%,
-    color-mix(in oklch, var(--color-primary) 70%, transparent),
+    color-mix(in oklch, var(--color-primary) 55%, transparent),
     transparent 70%
   );
 }
 
 .aurora-blob-2 {
-  top: 20%;
-  right: -15%;
-  width: 36rem;
-  height: 36rem;
+  top: 10%;
+  right: -18%;
+  width: 32rem;
+  height: 32rem;
   background: radial-gradient(
     circle at 40% 40%,
-    color-mix(in oklch, var(--color-accent) 65%, transparent),
+    color-mix(in oklch, var(--color-accent) 50%, transparent),
     transparent 70%
   );
+  opacity: 0.28;
 }
 
 .aurora-blob-3 {
-  bottom: -20%;
-  left: 20%;
-  width: 48rem;
-  height: 48rem;
+  bottom: -25%;
+  left: 25%;
+  width: 42rem;
+  height: 42rem;
   background: radial-gradient(
     circle at 50% 50%,
-    color-mix(in oklch, var(--color-primary) 45%, transparent),
+    color-mix(in oklch, var(--color-primary) 35%, transparent),
     transparent 70%
   );
-  opacity: 0.35;
-}
-
-.skip-shape {
-  position: absolute;
-  color: var(--color-primary);
-  opacity: 0.08;
-  will-change: transform;
-}
-
-.skip-shape-1 {
-  top: 18%;
-  left: 8%;
-  width: 9rem;
-  transform: rotate(-8deg);
-}
-
-.skip-shape-2 {
-  top: 55%;
-  right: 6%;
-  width: 7rem;
-  transform: rotate(6deg);
-  color: var(--color-accent);
-  opacity: 0.1;
-}
-
-.skip-shape-3 {
-  bottom: 8%;
-  left: 40%;
-  width: 6rem;
-  opacity: 0.07;
+  opacity: 0.22;
 }
 
 @keyframes aurora-drift-a {
@@ -278,29 +249,75 @@
   100% { transform: translate3d(0, 0, 0) scale(1); }
 }
 
-@keyframes skip-float-a {
-  0%   { transform: translate3d(0, 0, 0) rotate(-8deg); }
-  50%  { transform: translate3d(0, -20px, 0) rotate(-5deg); }
-  100% { transform: translate3d(0, 0, 0) rotate(-8deg); }
+/* -------------------------------------------------------------------
+ * Floating thematic shapes — skips, trucks, packages, recycle, leaf.
+ * Each positions itself by absolute top/left/right/bottom and gets a
+ * unique animation. Rotations live inside the keyframes so the final
+ * `transform` isn't overwritten at runtime.
+ * ------------------------------------------------------------------- */
+
+.float-shape {
+  position: absolute;
+  color: var(--color-primary);
+  opacity: 0.1;
+  will-change: transform;
 }
 
-@keyframes skip-float-b {
-  0%   { transform: translate3d(0, 0, 0) rotate(6deg); }
-  50%  { transform: translate3d(-12px, 14px, 0) rotate(9deg); }
-  100% { transform: translate3d(0, 0, 0) rotate(6deg); }
+.float-shape--skip-1    { top: 9%;  left: 4%;   color: var(--color-primary); opacity: 0.16; }
+.float-shape--skip-2    { top: 68%; right: 5%;  color: var(--color-primary); opacity: 0.12; }
+.float-shape--truck-1   { top: 22%; right: 10%; color: var(--color-accent);  opacity: 0.22; }
+.float-shape--truck-2   { bottom: 14%; left: 12%; color: var(--color-accent); opacity: 0.18; }
+.float-shape--box-1     { top: 48%; left: 8%;   color: var(--color-primary); opacity: 0.15; }
+.float-shape--box-2     { top: 34%; left: 48%;  color: var(--color-primary); opacity: 0.12; }
+.float-shape--recycle-1 { bottom: 26%; right: 28%; color: var(--color-primary); opacity: 0.14; }
+.float-shape--leaf-1    { top: 76%; left: 46%;  color: var(--color-accent);  opacity: 0.18; }
+
+@keyframes float-drift-a {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(-4deg); }
+  50%     { transform: translate3d(18px, -24px, 0) rotate(4deg); }
 }
 
-@keyframes skip-float-c {
+@keyframes float-drift-b {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(8deg); }
+  50%     { transform: translate3d(-22px, 18px, 0) rotate(-2deg); }
+}
+
+@keyframes float-drift-c {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%     { transform: translate3d(14px, 22px, 0) rotate(-6deg); }
+}
+
+@keyframes float-drift-d {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(-6deg); }
+  50%     { transform: translate3d(-18px, -16px, 0) rotate(4deg); }
+}
+
+@keyframes float-drift-e {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(12deg); }
+  50%     { transform: translate3d(12px, -20px, 0) rotate(22deg); }
+}
+
+@keyframes float-drift-f {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(-12deg); }
+  50%     { transform: translate3d(-12px, 18px, 0) rotate(-2deg); }
+}
+
+@keyframes float-spin {
   0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
-  50%  { transform: translate3d(16px, -12px, 0) rotate(-4deg); }
-  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(360deg); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .aurora-blob-1 { animation: aurora-drift-a 22s ease-in-out infinite; }
   .aurora-blob-2 { animation: aurora-drift-b 28s ease-in-out infinite; }
   .aurora-blob-3 { animation: aurora-drift-c 32s ease-in-out infinite; }
-  .skip-shape-1 { animation: skip-float-a 14s ease-in-out infinite; }
-  .skip-shape-2 { animation: skip-float-b 18s ease-in-out infinite; }
-  .skip-shape-3 { animation: skip-float-c 16s ease-in-out infinite; }
+
+  .float-shape--skip-1    { animation: float-drift-a 18s ease-in-out infinite; }
+  .float-shape--skip-2    { animation: float-drift-b 22s ease-in-out infinite; }
+  .float-shape--truck-1   { animation: float-drift-c 20s ease-in-out infinite; }
+  .float-shape--truck-2   { animation: float-drift-d 24s ease-in-out infinite; }
+  .float-shape--box-1     { animation: float-drift-e 16s ease-in-out infinite; }
+  .float-shape--box-2     { animation: float-drift-a 26s ease-in-out infinite reverse; }
+  .float-shape--recycle-1 { animation: float-spin 60s linear infinite; }
+  .float-shape--leaf-1    { animation: float-drift-f 19s ease-in-out infinite; }
 }
