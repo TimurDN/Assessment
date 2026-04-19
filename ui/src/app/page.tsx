@@ -2,10 +2,12 @@ import Link from "next/link";
 import { Sparkles, Truck } from "lucide-react";
 
 import { BookingWizard } from "@/components/booking/booking-wizard";
+import { BackgroundMesh } from "@/components/background-mesh";
 
 export default function Home() {
   return (
-    <div className="flex min-h-dvh flex-1 flex-col bg-hero-gradient">
+    <div className="relative flex min-h-dvh flex-1 flex-col">
+      <BackgroundMesh />
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <Link
