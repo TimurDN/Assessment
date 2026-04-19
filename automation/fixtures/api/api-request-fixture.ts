@@ -34,6 +34,7 @@ export const test = base.extend<ApiRequestMethods>({
             url,
             baseUrl,
             body = null,
+            rawBody,
             query,
             headers,
         }: ApiRequestParams): Promise<ApiRequestResponse<T>> => {
@@ -43,6 +44,7 @@ export const test = base.extend<ApiRequestMethods>({
                 url,
                 baseUrl: baseUrl ?? bookingConfig.apiUrl,
                 body,
+                rawBody,
                 query,
                 headers,
             });

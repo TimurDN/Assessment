@@ -20,6 +20,7 @@ export async function apiRequest({
     url,
     baseUrl,
     body = null,
+    rawBody,
     query,
     headers,
 }: {
@@ -28,11 +29,12 @@ export async function apiRequest({
     url: string;
     baseUrl?: string;
     body?: Record<string, unknown> | null;
+    rawBody?: Buffer;
     query?: Record<string, string | number | boolean | null | undefined>;
     headers?: string;
 }): Promise<{ status: number; body: unknown }> {
     const options: {
-        data?: Record<string, unknown> | null;
+        data?: Record<string, unknown> | Buffer | null;
         form?: Record<string, string>;
         headers?: Record<string, string>;
         params?: Record<string, string | number | boolean>;
@@ -50,6 +52,12 @@ export async function apiRequest({
     } else {
         if (body) options.data = body;
         options.headers = { 'Content-Type': 'application/json' };
+    }
+
+    // `rawBody` wins over `body` — it exists precisely for the case where
+    // the caller needs byte-exact control (e.g. unparseable JSON).
+    if (rawBody) {
+        options.data = rawBody;
     }
 
     if (query) {

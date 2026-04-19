@@ -4,6 +4,10 @@
  * @property url      Endpoint path (prepended with `baseUrl` if provided).
  * @property baseUrl  Optional base URL; defaults to Playwright's `baseURL`.
  * @property body     JSON request body (ignored for GET/DELETE).
+ * @property rawBody  Raw request body bytes — use for negative tests that
+ *                    must send unparseable JSON. Bypasses JSON serialization
+ *                    so the exact byte sequence reaches the server. Ignored
+ *                    if `body` is also set.
  * @property query    Query-string parameters (URL-encoded automatically).
  * @property headers  Shorthand token/form toggle: pass a bearer token string,
  *                    `'form-urlencoded'`, or leave undefined for JSON.
@@ -13,6 +17,7 @@ export type ApiRequestParams = {
     url: string;
     baseUrl?: string;
     body?: Record<string, unknown> | null;
+    rawBody?: Buffer;
     query?: Record<string, string | number | boolean | null | undefined>;
     headers?: string;
 };

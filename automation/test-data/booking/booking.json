@@ -1,0 +1,64 @@
+{
+    "postcodes": {
+        "HAPPY": "SW1A 1AA",
+        "EMPTY": "EC1A 1BB",
+        "SLOW": "M1 1AE",
+        "RETRY": "BS1 4DJ"
+    },
+    "addressCounts": {
+        "SW1A": 13,
+        "EC1A": 0,
+        "M1": 12,
+        "BS1": 6
+    },
+    "addressIds": {
+        "SW1A_DOWNING_10": "addr_sw1a_01",
+        "SW1A_DOWNING_11": "addr_sw1a_02",
+        "SW1A_DOWNING_12": "addr_sw1a_03"
+    },
+    "firstAddress": {
+        "SW1A": {
+            "id": "addr_sw1a_01",
+            "line1": "10 Downing Street",
+            "city": "London"
+        }
+    },
+    "lastAddress": {
+        "SW1A": {
+            "id": "addr_sw1a_13",
+            "line1": "Birdcage Walk",
+            "city": "London"
+        }
+    },
+    "skipCatalogueSize": 8,
+    "canonicalSkipSizes": [
+        "2-yard",
+        "3-yard",
+        "4-yard",
+        "5-yard",
+        "6-yard",
+        "8-yard",
+        "10-yard",
+        "12-yard"
+    ],
+    "defaultDisabledSkips": ["10-yard", "12-yard"],
+    "heavyDisabledSkips": ["2-yard", "3-yard"],
+    "skipPricesGBP": {
+        "2-yard": 90,
+        "3-yard": 110,
+        "4-yard": 140,
+        "5-yard": 170,
+        "6-yard": 200,
+        "8-yard": 240,
+        "10-yard": 290,
+        "12-yard": 340
+    },
+    "disabledReasons": {
+        "NOT_IN_AREA": "Not available in your area",
+        "HEAVY_WASTE": "Not rated for heavy waste",
+        "PLASTERBOARD_TOO_SMALL": "Too small for segregated plasterboard"
+    },
+    "vatRate": 0.2,
+    "heavyWasteSurchargeGBP": 25,
+    "plasterboardCollectionFeeGBP": 35
+}

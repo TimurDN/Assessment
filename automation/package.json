@@ -2,17 +2,23 @@
   "name": "qa-assessment-automation",
   "version": "0.1.0",
   "private": true,
-  "description": "Playwright E2E test suite for the booking-flow assessment app.",
+  "description": "Playwright test suite for the booking-flow assessment app.",
   "scripts": {
-    "test": "playwright test",
-    "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed",
-    "test:debug": "playwright test --debug",
+    "app-test": "playwright test --project=chromium-desktop",
+    "app-test:ui": "playwright test --project=chromium-desktop --ui",
+    "app-test:headed": "playwright test --project=chromium-desktop --headed",
+    "app-test:debug": "playwright test --project=chromium-desktop --debug",
+    "app-api": "playwright test --grep @App-API --project=chromium-desktop",
+    "app-e2e": "playwright test --grep @App-E2E --project=chromium-desktop",
+    "app-regression": "playwright test --grep @App-regression --project=chromium-desktop",
+    "app-all": "playwright test --project=chromium-desktop --grep \"@App-(API|E2E|regression)\"",
+    "app-ci": "playwright test --project=chromium-desktop --workers=1",
     "report": "playwright show-report",
     "codegen": "playwright codegen http://localhost:3000",
     "install-browsers": "playwright install --with-deps"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "@playwright/test": "^1.56.0",
     "@types/node": "^22.10.0",
     "typescript": "^5.6.0"

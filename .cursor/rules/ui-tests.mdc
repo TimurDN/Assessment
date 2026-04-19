@@ -1,0 +1,210 @@
+---
+description: Conventions and context for all Playwright E2E and functional UI tests — POM, fixtures, test structure, booking wizard page objects, scenarios
+globs: automation/tests/e2e/**/*.spec.ts,automation/tests/functional/**/*.spec.ts
+alwaysApply: false
+---
+
+# UI Tests — E2E & Functional Conventions + Context
+
+This is the **QA automation framework** for the SkipWise booking flow. Playwright v1.56 + TypeScript.
+
+## Imports & Boilerplate
+
+```typescript
+import { expect, test } from "../../fixtures/pom/test-options";
+import { faker } from "@faker-js/faker";
+import bookingData from "../../test-data/booking/booking.json";
+```
+
+`test-options.ts` merges all fixtures: page objects and `apiRequest`.
+
+## Two Test Categories
+
+| Category | Directory | Tag | Purpose |
+|----------|-----------|-----|---------|
+| **E2E** | `automation/tests/e2e/` | `@App-E2E` | Full happy-path flows through the four-step wizard — postcode → waste → skip → review → confirm |
+| **Functional** | `automation/tests/functional/` | `@App-regression` | Form validation, error/retry UI states, wizard state transitions, branching logic |
+
+## Test Structure
+
+- Every test: `{ tag: "@App-E2E" }` or `{ tag: "@App-regression" }` as second argument.
+- Use `test.step("GIVEN/WHEN/THEN/AND: description", async () => { ... })` for phases.
+- **E2E**: one test per flow, multiple `test.step` phases (postcode → waste → skip → review → confirm).
+- **Functional**: one test per validation scenario, `beforeEach` navigates to the wizard homepage with a single `GIVEN:` step.
+
+## Page Objects (POM)
+
+Page objects in `automation/pages/`, instantiated via `fixtures/pom/page-object-fixture.ts`:
+
+| Fixture | Class | Purpose |
+|---------|-------|---------|
+| `bookingPage` | `BookingPage` | Four-step booking wizard — all wizard interactions and verifications |
+
+### Locator Priority Hierarchy
+
+Use the **most user-facing** locator strategy available. Resort to `data-testid` only when semantic locators are ambiguous:
+
+1. `page.getByRole()` — buttons, links, headings, checkboxes (best: matches how users see the page)
+2. `page.getByText()` — visible text content
+3. `page.getByLabel()` — form fields by associated label
+4. `page.getByPlaceholder()` — inputs with placeholder text
+5. `page.getByAltText()` — images
+6. `page.getByTitle()` — elements with title attribute
+7. `page.locator('[data-testid="..."]')` — **last resort** when none of the above are unique
+
+- `BasePage` in `pages/baseClasses/` provides spinner waits, toast assertions, navigation, and an abstract `open()` contract every page implements.
+
+### POM Method Standards
+
+- **JSDoc on all public methods** — include `@param`, `@returns`, purpose description:
+
+```typescript
+/**
+ * Fill the postcode input and click *Find address*. Does not assert
+ * the outcome — follow up with a `verify*` method.
+ *
+ * @param postcode UK postcode in any spacing/casing.
+ */
+async enterPostcode(postcode: string): Promise<void> { ... }
+```
+
+- **No single-action methods** — every public POM method must include at least one built-in validation (e.g. `expect(...).toBeVisible()`, `expect(...).toHaveAttribute(...)`, `waitForResponse`). A method that only calls `click()` is too thin.
+- **Explicit `Promise<void>` return types** on all async methods (except where a computed value is returned — e.g. `confirmBooking` returns the parsed booking ID).
+- **Encapsulate waits** — put `waitFor` / `waitForResponse` inside the POM method, not in the test.
+- **Action vs. verification split** — methods that perform a user action (`enterPostcode`, `selectWasteTypes`, `selectSkip`, `confirmBooking`) are named after the action. Methods that assert outcomes are named `verify*` (`verifyPageLoaded`, `verifyAddressListPopulated`, `verifySkipDisabled`, `verifyReviewSummary`, `verifyBookingSuccess`).
+
+### BookingPage Key Methods
+
+Grouped by wizard step:
+
+**Navigation**
+- `open()` — goto home, assert wizard rendered.
+
+**Step 1 · Postcode**
+- `enterPostcode(postcode)`, `clearPostcode()`
+- `selectAddress(id)`, `selectFirstAddress()`, `enterManualAddress(line1, city)`
+- `retryPostcodeLookup()`
+- `clickContinueFromStep1()` — asserts wizard advanced to step 2
+
+**Step 2 · Waste types**
+- `selectWasteTypes({ heavy, plasterboard, plasterboardOption? })`
+- `clickContinueFromStep2()`
+
+**Step 3 · Skip selection**
+- `selectSkip(size)` — asserts the card is enabled and becomes selected
+- `clickContinueFromStep3()`
+
+**Step 4 · Review + confirm**
+- `confirmBooking()` — clicks confirm, waits for success, returns parsed `BK-#####`
+
+**Verification helpers**
+- `verifyPageLoaded()`, `verifyStep(n)`
+- `verifyAddressListPopulated(count?)`, `verifyEmptyPostcodeState()`
+- `verifyPostcodeClientError()`, `verifyPostcodeServerError()`, `verifyAnyPostcodeError()` (union — either surface counts)
+- `verifySkipDisabled(size, reason)`, `verifySkipsListed(expectedCount)`
+- `verifyReviewSummary({ postcode, addressContains, heavy, plasterboard, skipSize, totalGBP })`
+- `verifyPriceTotal(gbp)`, `verifyBookingSuccess()`
+
+## Timeouts
+
+- E2E flows: `test.setTimeout(300_000)` at describe level.
+- UI wait constants at file scope:
+
+```typescript
+const MS = {
+  page: 15_000,
+  toast: 10_000,
+  button: 20_000,
+  grid: 15_000,
+};
+```
+
+## Cleanup
+
+- The booking app has no persistent resources to clean up — bookings live only in an in-memory idempotency cache.
+- For specs that touch the BS1 4DJ retry fixture, reset the counter in `beforeEach` via `resetRetryCounter(apiRequest, bookingData.postcodes.RETRY)`.
+- Functional tests that interact with the wizard should not leave the page in a partially-filled state across tests — rely on `beforeEach` to navigate fresh.
+
+## Navigation Pattern
+
+```typescript
+await bookingPage.open();
+await bookingPage.verifyPageLoaded();
+```
+
+The wizard is a single-page flow; there is no sidebar/dashboard navigation. `open()` is all you need before starting any wizard interaction.
+
+## Auth
+
+- **No authentication** — the booking app is public. Specs never log in, never inject tokens, never set storage state.
+- For API cleanup helpers, `apiRequest` is provided by the fixture — no bearer token required.
+
+## Test Data
+
+- Dynamic names/addresses: `manual:${faker.string.alphanumeric(8)} ${faker.location.streetAddress()}`.
+- Shared data: `test-data/booking/*.json` (canonical postcodes, address counts, skip catalogue, price map, validation matrices).
+
+---
+
+## Frontend Mapping (test IDs)
+
+| UI Element | Test ID |
+|-----------|---------|
+| Wizard container | `wizard`, `wizard-step-1` … `wizard-step-4` |
+| Stepper | `stepper`, `stepper-step-1` … `stepper-step-4` (attribute `data-state`: `done` \| `current` \| `upcoming`) |
+| Postcode step | `step-postcode`, `postcode-input`, `postcode-lookup-button`, `postcode-validation-error`, `postcode-error`, `postcode-empty`, `postcode-retry`, `postcode-manual-open`, `postcode-next` |
+| Address list | `address-list`, `address-option-<id>` (attribute `data-selected`: `true` \| `false`) |
+| Manual address | `manual-address`, `manual-line1`, `manual-city`, `manual-save`, `manual-saved` |
+| Postcode loading | `postcode-loading` |
+| Waste step | `step-waste`, `heavy-waste-group`, `heavy-waste-yes`, `heavy-waste-no`, `plasterboard-group`, `plasterboard-yes`, `plasterboard-no`, `plasterboard-options`, `plasterboard-option-bagged`, `plasterboard-option-segregated`, `plasterboard-option-collection`, `waste-error`, `waste-back`, `waste-next` |
+| Skip step | `step-skip`, `skip-list`, `skip-option-<size>` (attributes `data-selected` + `data-disabled`), `skip-disabled-reason-<size>`, `skips-loading`, `skips-error`, `skips-retry`, `skip-back`, `skip-next` |
+| Review step | `step-review`, `review-summary`, `review-postcode`, `review-address`, `review-heavy`, `review-plasterboard`, `review-plasterboard-option`, `review-skip` |
+| Price breakdown | `price-breakdown`, `price-line-skip`, `price-line-heavy`, `price-line-plasterboard`, `price-subtotal`, `price-vat`, `price-total` |
+| Confirmation | `confirm-booking`, `confirm-error`, `confirm-retry`, `booking-success`, `booking-id`, `booking-start-over` |
+| Background decoration | `background-mesh` (pointer-events: none, aria-hidden — never targeted by tests) |
+
+## Scenario Inventory
+
+### E2E specs (`automation/tests/e2e/`)
+
+- **General waste** (`general-waste.spec.ts`): Happy path — SW1A 1AA → 10 Downing Street → no heavy / no plasterboard → 6-yard skip → review → confirm. Asserts price-line-skip + price-subtotal, the absence of surcharge lines, and `verifyBookingSuccess`.
+- **Heavy waste** (`heavy-waste.spec.ts`): Branching — SW1A 1AA → Buckingham Palace → heavy=Yes / plasterboard=No → asserts 2-yard and 3-yard disabled with "Not rated for heavy waste", area-disabled skips still carry "Not available in your area", picks 6-yard → review shows heavy-waste surcharge line and correct subtotal → confirm.
+- **Plasterboard** (`plasterboard.spec.ts`): Branching — SW1A 1AA → Horse Guards Road → heavy=No / plasterboard=Yes → asserts 3 handling options appear and Continue is disabled until one is chosen → picks `collection` → picks 5-yard → review shows handling label and collection fee → confirm.
+
+### Functional specs (`automation/tests/functional/`)
+
+- **Postcode validation** (`postcode-validation.spec.ts`): Empty-input validation (no API call fires), loop over `malformedPostcodes` expecting any postcode error, loop over `normalizationVariants` verifying each resolves to 13 SW1A addresses, EC1A 1BB empty state with manual-entry fallback.
+- **Retry flow** (`retry-flow.spec.ts`): BS1 4DJ shows error alert with Retry + manual-entry buttons on first call; retry loads 6 Bristol addresses and clears the error. Second test: open manual entry directly from the error alert without retrying.
+- **State transitions** (`state-transitions.spec.ts`): Plasterboard toggle reveals/hides three handling options (Continue disables until an option is picked, enables when plaster=No). Going Back from step 3 preserves the waste selection (heavy=Yes and plasterboard=No remain ticked). Confirm fires the API exactly once and replaces the form with the success view.
+
+## Things to Avoid
+
+- **No `page.waitForTimeout()`** — use web-first assertions (`expect(locator).toBeVisible()`, `toHaveText()`, etc.) which auto-retry.
+- **No `page.evaluate()` for DOM manipulation** — interact through Playwright locators only.
+- **No hardcoded postcodes, skip sizes, or prices** in test files — pull from `test-data/booking/booking.json`.
+- **No commented-out code** in final output — delete dead code; use `// TODO:` or `// BUG:` annotations only for tracked items.
+- **No single-action POM methods** — every public POM method must include a built-in wait or assertion (see POM Method Standards).
+- **No raw `page.locator('css-selector')` without data-testid** — follow the locator priority hierarchy.
+- **No assertions on animation/transition states** — wait for the final stable state before asserting (the animated background layer and stepper rails have long transition cycles).
+- **No test-to-test dependencies** — each test must be runnable in isolation.
+- **No single-shot reads of dynamic UI values** — when reading a value and comparing it against another (e.g. `subtotal === skipPrice + surcharge`), **always wrap in `.toPass()`** so the entire read-then-assert sequence retries until values are consistent:
+
+```typescript
+// BAD — price breakdown can re-render between reads
+const subtotal = await page.getByTestId("price-subtotal").innerText();
+const vat = await page.getByTestId("price-vat").innerText();
+expect(parseInt(subtotal) + parseInt(vat)).toBe(expectedTotal);
+
+// CORRECT — retries until a consistent snapshot is captured
+await expect(async () => {
+  const subtotal = await page.getByTestId("price-subtotal").innerText();
+  const vat = await page.getByTestId("price-vat").innerText();
+  expect(parseInt(subtotal) + parseInt(vat)).toBe(expectedTotal);
+}).toPass({ timeout: 15_000 });
+```
+
+## Environment
+
+- `BASE_URL`: app base URL (defaults to `http://localhost:3000`).
+- `API_URL`: optional override when the API is hosted separately from the UI; falls back to `BASE_URL`.
+- Precondition: the Next.js dev server (or a built deployment) is running at `BASE_URL` — the Playwright config's `webServer` block auto-starts `npm --prefix ../ui run dev` locally.

@@ -24,7 +24,8 @@ export async function resetRetryCounter(
 ): Promise<TestResetResponse> {
     const { status, body } = await apiRequest<TestResetResponse>({
         method: 'POST',
-        url: bookingConfig.paths.TEST_RESET,
+        url: bookingConfig.api.TEST_RESET,
+        baseUrl: bookingConfig.apiUrl,
         body: { postcode },
     });
 
