@@ -49,72 +49,72 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.985 0.004 106);
+  --foreground: oklch(0.17 0.015 220);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.17 0.015 220);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.17 0.015 220);
+  --primary: oklch(0.52 0.115 180);
+  --primary-foreground: oklch(0.985 0.003 180);
+  --secondary: oklch(0.95 0.018 180);
+  --secondary-foreground: oklch(0.28 0.07 180);
+  --muted: oklch(0.965 0.008 180);
+  --muted-foreground: oklch(0.5 0.018 220);
+  --accent: oklch(0.82 0.13 75);
+  --accent-foreground: oklch(0.22 0.03 70);
+  --destructive: oklch(0.58 0.22 25);
+  --border: oklch(0.91 0.012 180);
+  --input: oklch(0.91 0.012 180);
+  --ring: oklch(0.52 0.115 180);
+  --chart-1: oklch(0.52 0.115 180);
+  --chart-2: oklch(0.72 0.12 75);
+  --chart-3: oklch(0.58 0.14 215);
+  --chart-4: oklch(0.64 0.16 20);
+  --chart-5: oklch(0.38 0.08 200);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.985 0.004 180);
+  --sidebar-foreground: oklch(0.17 0.015 220);
+  --sidebar-primary: oklch(0.52 0.115 180);
+  --sidebar-primary-foreground: oklch(0.985 0.003 180);
+  --sidebar-accent: oklch(0.95 0.018 180);
+  --sidebar-accent-foreground: oklch(0.28 0.07 180);
+  --sidebar-border: oklch(0.91 0.012 180);
+  --sidebar-ring: oklch(0.52 0.115 180);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: oklch(0.17 0.015 220);
+  --foreground: oklch(0.97 0.006 180);
+  --card: oklch(0.22 0.018 215);
+  --card-foreground: oklch(0.97 0.006 180);
+  --popover: oklch(0.22 0.018 215);
+  --popover-foreground: oklch(0.97 0.006 180);
+  --primary: oklch(0.7 0.12 180);
+  --primary-foreground: oklch(0.17 0.025 200);
+  --secondary: oklch(0.28 0.025 210);
+  --secondary-foreground: oklch(0.97 0.006 180);
+  --muted: oklch(0.26 0.02 215);
+  --muted-foreground: oklch(0.72 0.015 200);
+  --accent: oklch(0.75 0.14 75);
+  --accent-foreground: oklch(0.22 0.03 70);
+  --destructive: oklch(0.68 0.2 22);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.12 180);
+  --chart-1: oklch(0.7 0.12 180);
+  --chart-2: oklch(0.78 0.13 75);
+  --chart-3: oklch(0.65 0.14 215);
+  --chart-4: oklch(0.7 0.15 20);
+  --chart-5: oklch(0.45 0.09 200);
+  --sidebar: oklch(0.2 0.018 215);
+  --sidebar-foreground: oklch(0.97 0.006 180);
+  --sidebar-primary: oklch(0.7 0.12 180);
+  --sidebar-primary-foreground: oklch(0.17 0.025 200);
+  --sidebar-accent: oklch(0.28 0.025 210);
+  --sidebar-accent-foreground: oklch(0.97 0.006 180);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: oklch(0.7 0.12 180);
 }
 
 @layer base {
@@ -127,4 +127,197 @@
   html {
     @apply font-sans;
   }
+}
+
+@layer utilities {
+  .bg-hero-gradient {
+    background:
+      radial-gradient(
+        1200px 600px at 15% -10%,
+        color-mix(in oklch, var(--color-primary) 10%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 500px at 105% 10%,
+        color-mix(in oklch, var(--color-accent) 14%, transparent),
+        transparent 60%
+      ),
+      linear-gradient(
+        180deg,
+        color-mix(in oklch, var(--color-background) 94%, var(--color-primary) 6%) 0%,
+        var(--color-background) 70%
+      );
+  }
+
+  .bg-stripes-muted {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      color-mix(in oklch, var(--color-muted-foreground) 8%, transparent) 0 6px,
+      transparent 6px 12px
+    );
+  }
+
+  /* Subtle architectural dot grid (delivery-route vibe). */
+  .bg-dotgrid {
+    background-image: radial-gradient(
+      color-mix(in oklch, var(--color-primary) 7%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 32px 32px;
+    background-position: 0 0;
+    mask-image: radial-gradient(
+      ellipse 70% 60% at 50% 20%,
+      black 20%,
+      transparent 70%
+    );
+    -webkit-mask-image: radial-gradient(
+      ellipse 70% 60% at 50% 20%,
+      black 20%,
+      transparent 70%
+    );
+  }
+}
+
+/* -------------------------------------------------------------------
+ * Animated "aurora" background layer.
+ * Each keyframe moves GPU-friendly properties (transform, opacity) only.
+ * Motion is gated on `prefers-reduced-motion: no-preference` so users
+ * with the OS motion-reduction flag get a static backdrop.
+ * ------------------------------------------------------------------- */
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.35;
+  will-change: transform, opacity;
+}
+
+.aurora-blob-1 {
+  top: -18%;
+  left: -10%;
+  width: 38rem;
+  height: 38rem;
+  background: radial-gradient(
+    circle at 30% 30%,
+    color-mix(in oklch, var(--color-primary) 55%, transparent),
+    transparent 70%
+  );
+}
+
+.aurora-blob-2 {
+  top: 10%;
+  right: -18%;
+  width: 32rem;
+  height: 32rem;
+  background: radial-gradient(
+    circle at 40% 40%,
+    color-mix(in oklch, var(--color-accent) 50%, transparent),
+    transparent 70%
+  );
+  opacity: 0.28;
+}
+
+.aurora-blob-3 {
+  bottom: -25%;
+  left: 25%;
+  width: 42rem;
+  height: 42rem;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in oklch, var(--color-primary) 35%, transparent),
+    transparent 70%
+  );
+  opacity: 0.22;
+}
+
+@keyframes aurora-drift-a {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(4%, 6%, 0) scale(1.05); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes aurora-drift-b {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-6%, 4%, 0) scale(1.08); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes aurora-drift-c {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(3%, -4%, 0) scale(0.96); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+/* -------------------------------------------------------------------
+ * Floating thematic shapes — skips, trucks, packages, recycle, leaf.
+ * Each positions itself by absolute top/left/right/bottom and gets a
+ * unique animation. Rotations live inside the keyframes so the final
+ * `transform` isn't overwritten at runtime.
+ * ------------------------------------------------------------------- */
+
+.float-shape {
+  position: absolute;
+  color: var(--color-primary);
+  opacity: 0.1;
+  will-change: transform;
+}
+
+.float-shape--skip-1    { top: 9%;  left: 4%;   color: var(--color-primary); opacity: 0.16; }
+.float-shape--skip-2    { top: 68%; right: 5%;  color: var(--color-primary); opacity: 0.12; }
+.float-shape--truck-1   { top: 22%; right: 10%; color: var(--color-accent);  opacity: 0.22; }
+.float-shape--truck-2   { bottom: 14%; left: 12%; color: var(--color-accent); opacity: 0.18; }
+.float-shape--box-1     { top: 48%; left: 8%;   color: var(--color-primary); opacity: 0.15; }
+.float-shape--box-2     { top: 34%; left: 48%;  color: var(--color-primary); opacity: 0.12; }
+.float-shape--recycle-1 { bottom: 26%; right: 28%; color: var(--color-primary); opacity: 0.14; }
+.float-shape--leaf-1    { top: 76%; left: 46%;  color: var(--color-accent);  opacity: 0.18; }
+
+@keyframes float-drift-a {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(-4deg); }
+  50%     { transform: translate3d(18px, -24px, 0) rotate(4deg); }
+}
+
+@keyframes float-drift-b {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(8deg); }
+  50%     { transform: translate3d(-22px, 18px, 0) rotate(-2deg); }
+}
+
+@keyframes float-drift-c {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%     { transform: translate3d(14px, 22px, 0) rotate(-6deg); }
+}
+
+@keyframes float-drift-d {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(-6deg); }
+  50%     { transform: translate3d(-18px, -16px, 0) rotate(4deg); }
+}
+
+@keyframes float-drift-e {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(12deg); }
+  50%     { transform: translate3d(12px, -20px, 0) rotate(22deg); }
+}
+
+@keyframes float-drift-f {
+  0%,100% { transform: translate3d(0, 0, 0) rotate(-12deg); }
+  50%     { transform: translate3d(-12px, 18px, 0) rotate(-2deg); }
+}
+
+@keyframes float-spin {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .aurora-blob-1 { animation: aurora-drift-a 22s ease-in-out infinite; }
+  .aurora-blob-2 { animation: aurora-drift-b 28s ease-in-out infinite; }
+  .aurora-blob-3 { animation: aurora-drift-c 32s ease-in-out infinite; }
+
+  .float-shape--skip-1    { animation: float-drift-a 18s ease-in-out infinite; }
+  .float-shape--skip-2    { animation: float-drift-b 22s ease-in-out infinite; }
+  .float-shape--truck-1   { animation: float-drift-c 20s ease-in-out infinite; }
+  .float-shape--truck-2   { animation: float-drift-d 24s ease-in-out infinite; }
+  .float-shape--box-1     { animation: float-drift-e 16s ease-in-out infinite; }
+  .float-shape--box-2     { animation: float-drift-a 26s ease-in-out infinite reverse; }
+  .float-shape--recycle-1 { animation: float-spin 60s linear infinite; }
+  .float-shape--leaf-1    { animation: float-drift-f 19s ease-in-out infinite; }
 }

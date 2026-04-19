@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { POSTCODE_REGEX, type Address } from "@/lib/fixtures";
+import { type Address } from "@/lib/fixtures";
 import { useWizard } from "./wizard-provider";
 
 type LookupState =
@@ -36,7 +36,7 @@ export function StepPostcode() {
       setValidationError("Please enter a postcode.");
       return;
     }
-    if (!POSTCODE_REGEX.test(trimmed.replace(/\s+/g, ""))) {
+    if (trimmed.length < 5) {
       setValidationError("That doesn’t look like a valid UK postcode.");
       return;
     }
@@ -95,7 +95,7 @@ export function StepPostcode() {
 
       <div className="flex flex-col gap-3">
         <Label htmlFor="postcode-input">Postcode</Label>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             id="postcode-input"
             data-testid="postcode-input"
@@ -113,11 +113,13 @@ export function StepPostcode() {
                 runLookup();
               }
             }}
+            className="h-11 text-base sm:h-10 sm:text-sm"
           />
           <Button
             data-testid="postcode-lookup-button"
             onClick={runLookup}
             disabled={lookup.kind === "loading"}
+            className="h-11 w-full sm:h-10 sm:w-auto"
           >
             {lookup.kind === "loading" ? (
               <Loader2 className="h-4 w-4 animate-spin" />

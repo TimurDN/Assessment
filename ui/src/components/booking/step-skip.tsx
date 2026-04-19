@@ -127,22 +127,38 @@ export function StepSkip() {
                   aria-pressed={selected}
                   onClick={() => onSelect(s)}
                   className={cn(
-                    "flex w-full flex-col items-start gap-1 rounded-lg border p-4 text-left transition-colors",
+                    "group flex w-full flex-col gap-3 rounded-xl border bg-card p-4 text-left shadow-sm transition-all duration-150",
                     s.disabled
-                      ? "cursor-not-allowed border-dashed bg-muted/30 opacity-60"
-                      : "hover:bg-muted",
-                    selected && !s.disabled && "border-primary bg-primary/5",
+                      ? "cursor-not-allowed border-dashed bg-stripes-muted opacity-70"
+                      : "hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+                    selected &&
+                      !s.disabled &&
+                      "border-primary bg-primary/5 ring-2 ring-primary/25",
                   )}
                 >
-                  <div className="flex w-full items-center justify-between">
-                    <span className="text-base font-semibold">{s.size}</span>
-                    <span className="font-mono text-sm">{formatGBP(s.price)}</span>
+                  <div className="flex w-full items-start justify-between gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-base font-semibold tracking-tight">
+                        {s.size}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {s.disabled ? "Not available" : "Enabled"}
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "font-mono text-lg font-semibold tabular-nums",
+                        s.disabled ? "text-muted-foreground" : "text-foreground",
+                      )}
+                    >
+                      {formatGBP(s.price)}
+                    </span>
                   </div>
                   {s.disabled && (
                     <Badge
                       variant="secondary"
                       data-testid={`skip-disabled-reason-${s.size}`}
-                      className="mt-1"
+                      className="w-fit bg-muted text-xs"
                     >
                       {s.disabledReason ?? "Unavailable"}
                     </Badge>

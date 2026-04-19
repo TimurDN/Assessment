@@ -11,12 +11,17 @@ import { StepReview } from "./step-review";
 function WizardInner() {
   const { state } = useWizard();
   return (
-    <Card className="w-full" data-testid="wizard">
-      <CardHeader className="gap-4">
-        <CardTitle className="text-lg sm:text-xl">Book a skip</CardTitle>
+    <Card
+      className="w-full border-border/60 bg-card/95 shadow-lg shadow-primary/5 backdrop-blur-sm"
+      data-testid="wizard"
+    >
+      <CardHeader className="gap-4 border-b border-border/60 pb-5">
+        <CardTitle className="text-lg tracking-tight sm:text-xl">
+          Book a skip
+        </CardTitle>
         <Stepper current={state.step} />
       </CardHeader>
-      <CardContent data-testid={`wizard-step-${state.step}`}>
+      <CardContent className="pt-6" data-testid={`wizard-step-${state.step}`}>
         {state.step === 1 && <StepPostcode />}
         {state.step === 2 && <StepWaste />}
         {state.step === 3 && <StepSkip />}
