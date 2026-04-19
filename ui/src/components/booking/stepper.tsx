@@ -14,7 +14,7 @@ const STEPS: Array<{ id: StepId; label: string }> = [
 export function Stepper({ current }: { current: StepId }) {
   return (
     <ol
-      className="flex w-full items-center gap-2"
+      className="flex w-full items-center gap-1 sm:gap-2"
       data-testid="stepper"
       aria-label="Booking progress"
     >
@@ -31,17 +31,22 @@ export function Stepper({ current }: { current: StepId }) {
           >
             <div
               className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium transition-colors",
-                state === "done" && "border-primary bg-primary text-primary-foreground",
-                state === "current" && "border-primary bg-primary/10 text-primary",
-                state === "upcoming" && "border-border bg-background text-muted-foreground",
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-all duration-200",
+                state === "done" &&
+                  "border-primary bg-primary text-primary-foreground shadow-sm",
+                state === "current" &&
+                  "border-primary bg-primary/10 text-primary ring-4 ring-primary/15",
+                state === "upcoming" &&
+                  "border-border bg-background text-muted-foreground",
               )}
             >
               {state === "done" ? <Check className="h-4 w-4" /> : step.id}
             </div>
             <span
               className={cn(
-                "hidden text-sm font-medium sm:inline",
+                "hidden text-sm font-medium transition-colors sm:inline",
+                state === "current" && "text-foreground",
+                state === "done" && "text-foreground/80",
                 state === "upcoming" && "text-muted-foreground",
               )}
             >
@@ -50,7 +55,7 @@ export function Stepper({ current }: { current: StepId }) {
             {idx < STEPS.length - 1 && (
               <div
                 className={cn(
-                  "h-px flex-1 bg-border",
+                  "h-0.5 flex-1 rounded-full bg-border transition-colors duration-300",
                   state === "done" && "bg-primary",
                 )}
                 aria-hidden
