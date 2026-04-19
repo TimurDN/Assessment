@@ -1,0 +1,161 @@
+# Manual Test Cases — Booking Flow
+
+This catalogue captures the full set of scenarios required to ship the booking
+wizard. Each case is written so a human can execute it against a running build
+without prior context. Where a case is also covered by automation, the
+**Evidence** column cites the spec file and test title — automation is the
+execution record, this file is the plan.
+
+Cases marked `No` under **Automated** require a human tester (accessibility,
+responsiveness, visual layout) and are executed against the build URL.
+Bug-related visuals live under [`./bugs/`](./bugs/); other manual-only cases
+list *Manual — not captured* in the Evidence column because they require a
+live deployed build and/or assistive-tech hardware the automation suite
+can't exercise.
+
+## Scope & rubric
+
+
+| Category                     | PDF minimum | This plan |
+| ---------------------------- | ----------- | --------- |
+| Happy path                   | —           | 4         |
+| Negative                     | 10          | 12        |
+| Edge                         | 6           | 7         |
+| API failure                  | 4           | 5         |
+| State transition             | 4           | 5         |
+| Accessibility (manual only)  | —           | 3         |
+| Responsiveness (manual only) | —           | 2         |
+| **Total**                    | **≥ 35**    | **38**    |
+
+
+Known bugs referenced below: **BUG-1** (skip selection leaks across
+waste-type changes), **BUG-2** (weak UI postcode validator),
+**BUG-3** (VAT missing from total). See [`./bug-reports.md`](./bug-reports.md)
+for full write-ups.
+
+## Test environment
+
+- **Build:** `npm run dev` in `ui/` at [http://127.0.0.1:3000](http://127.0.0.1:3000)
+- **Reset hook:** `POST /api/testkit/reset` clears the retry counter
+- **Deterministic postcodes:**
+  - `SW1A 1AA` → 13 addresses, happy path
+  - `EC1A 1BB` → 0 addresses, empty state
+  - `M1 1AE`   → ~1200 ms delay, then 12 addresses
+  - `BS1 4DJ`  → 500 on first call, 200 on retry
+- **Browser matrix (manual pass):** Chromium 140+, WebKit 17+, viewports 375×812 / 768×1024 / 1440×900
+
+---
+
+## Test cases
+
+
+| TC-ID  | Area                                | Category         | Preconditions                               | Steps                                                                                                                                                                                               | Expected result                                                                                                                                    | Automated                  | Evidence                                                                                             |
+| ------ | ----------------------------------- | ---------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| TC-001 | Full booking — general waste        | Happy path       | Fresh session; postcode `SW1A 1AA`          | 1. Enter postcode and click **Find address** 2. Select first address 3. Waste: heavyWaste=no, plasterboard=no → Next 4. Select **4-yard** 5. Click **Confirm booking**                              | Step 4 shows confirmation with `BK-#####` bookingId; stepper marks all 4 steps complete                                                            | Yes                        | `automation/tests/e2e/general-waste.spec.ts`                                                         |
+| TC-002 | Full booking — heavy waste          | Happy path       | Fresh session; postcode `SW1A 1AA`          | 1. Lookup postcode → pick address 2. Toggle **Heavy waste = yes** → Next 3. Verify 2-yard/3-yard are disabled 4. Select **4-yard** 5. Confirm                                                       | Booking succeeds with `BK-#####`; price breakdown includes £25 heavy-waste surcharge                                                               | Yes                        | `automation/tests/e2e/heavy-waste.spec.ts`                                                           |
+| TC-003 | Full booking — plasterboard bagged  | Happy path       | Fresh session; postcode `SW1A 1AA`          | 1. Lookup → pick address 2. Set **Plasterboard = yes**, option `bagged` → Next 3. Verify 2-yard disabled 4. Select **6-yard** → Confirm                                                             | Booking succeeds; breakdown shows £35 plasterboard fee                                                                                             | Yes                        | `automation/tests/e2e/plasterboard.spec.ts`                                                          |
+| TC-004 | Compose API chain                   | Happy path       | Server reachable                            | 1. `POST /api/postcode/lookup {postcode:"SW1A 1AA"}` → grab first `addressId` 2. `GET /api/skips?postcode=SW1A+1AA` → pick enabled `{size,price}` 3. `POST /api/booking/confirm` with composed body | Every call 200; final body `{status:"success", bookingId:/^BK-\d{5}$/}`                                                                            | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify lookup → skips → confirm`                     |
+| TC-005 | Missing postcode                    | Negative         | —                                           | `POST /api/postcode/lookup` with body `{}`                                                                                                                                                          | 400 `{error:"MISSING_POSTCODE"}`                                                                                                                   | Yes                        | `automation/tests/api/postcode-lookup.spec.ts`                                                       |
+| TC-006 | Malformed postcode                  | Negative         | —                                           | Loop over `"XYZ"`, `"SW1"`, `"12345"`, `"A B"` via `POST /api/postcode/lookup`                                                                                                                      | Each returns 422 `{error:"INVALID_POSTCODE"}`                                                                                                      | Yes                        | `automation/tests/api/postcode-lookup.spec.ts › Verify … rejects malformed postcodes`                |
+| TC-007 | Empty-string postcode               | Negative         | —                                           | `POST /api/postcode/lookup {postcode:""}`                                                                                                                                                           | 422 `{error:"INVALID_POSTCODE"}`                                                                                                                   | Yes                        | `automation/tests/api/postcode-lookup.spec.ts`                                                       |
+| TC-008 | Plasterboard option without flag    | Negative         | —                                           | `POST /api/waste-types` with `{heavyWaste:false, plasterboard:false, plasterboardOption:"bagged"}`                                                                                                  | 400 `{error:"INVALID_PLASTERBOARD_OPTION"}`                                                                                                        | Yes                        | `automation/tests/api/waste-types.spec.ts`                                                           |
+| TC-009 | Missing waste flag                  | Negative         | —                                           | `POST /api/waste-types` missing `heavyWaste`                                                                                                                                                        | 400 `{error:"INVALID_WASTE_FLAGS"}`                                                                                                                | Yes                        | `automation/tests/api/waste-types.spec.ts`                                                           |
+| TC-010 | Skips without postcode              | Negative         | —                                           | `GET /api/skips` (no query)                                                                                                                                                                         | 400 `{error:"MISSING_POSTCODE"}`                                                                                                                   | Yes                        | `automation/tests/api/skips.spec.ts`                                                                 |
+| TC-011 | Missing addressId on confirm        | Negative         | —                                           | `POST /api/booking/confirm` with `addressId` removed                                                                                                                                                | 400 `{error:"INVALID_ADDRESS"}`                                                                                                                    | Yes                        | `automation/tests/api/booking-confirm.spec.ts`                                                       |
+| TC-012 | Price mismatch                      | Negative         | —                                           | `POST /api/booking/confirm` with `skipSize:"4-yard"`, `price:1`                                                                                                                                     | 409 `{error:"PRICE_MISMATCH"}`; message names expected price `140`                                                                                 | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … PRICE_MISMATCH`                             |
+| TC-013 | Unknown skip size                   | Negative         | —                                           | `POST /api/booking/confirm` with `skipSize:"7-yard"`                                                                                                                                                | 422 `{error:"SKIP_NOT_FOUND"}`                                                                                                                     | Yes                        | `automation/tests/api/booking-confirm.spec.ts`                                                       |
+| TC-014 | Disabled skip at confirm            | Negative         | —                                           | `POST /api/booking/confirm` with `heavyWaste:true`, `skipSize:"2-yard"`, `price:90`                                                                                                                 | 409 `{error:"SKIP_DISABLED"}`; message contains `2-yard`                                                                                           | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … SKIP_DISABLED`                              |
+| TC-015 | UI — malformed postcode             | Negative         | At step 1                                   | 1. Type `XYZ` 2. Click **Find address**                                                                                                                                                             | Inline validation error shown; request does not fire (**or** fires and surfaces backend 422 — see BUG-2)                                           | Yes                        | `automation/tests/functional/postcode-validation.spec.ts`                                            |
+| TC-016 | UI — continue without address       | Negative         | At step 1 after successful lookup           | 1. Do not pick an address 2. Try to click **Continue**                                                                                                                                              | Continue button is disabled; focus returns to address list                                                                                         | Yes                        | `automation/tests/functional/postcode-validation.spec.ts`                                            |
+| TC-017 | Skip size casing                    | Edge             | —                                           | `POST /api/booking/confirm` with `skipSize:"4-YARD"`                                                                                                                                                | 422 `{error:"SKIP_NOT_FOUND"}` (contract is case-sensitive)                                                                                        | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … case-sensitive on skipSize`                 |
+| TC-018 | Empty `manual:` address             | Edge             | —                                           | `POST /api/booking/confirm` with `addressId:"manual:"` (and `"manual: "`)                                                                                                                           | 200 `{status:"success"}` (loose gate — pinned contract; candidate for tightening)                                                                  | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … accepts an empty "manual:" addressId`       |
+| TC-019 | Boundary prices                     | Edge             | —                                           | Loop `price` over `[-140, 0, 139.99, "140"]` on `/api/booking/confirm` with `skipSize:"4-yard"`                                                                                                     | Each returns 409 `{error:"PRICE_MISMATCH"}`                                                                                                        | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … boundary price values`                      |
+| TC-020 | Idempotency window (sequential)     | Edge             | Fresh process                               | 1. Confirm booking X 2. Immediately confirm booking X again (same payload)                                                                                                                          | Both 200; bookingId equal; second response has `idempotent:true`                                                                                   | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … same bookingId for identical payloads`      |
+| TC-021 | Idempotency window (concurrent)     | Edge             | Fresh process                               | 5× `POST /api/booking/confirm` with identical payload via `Promise.all`                                                                                                                             | All 200; all share one `bookingId`; at most one response omits `idempotent` (the writer)                                                           | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … idempotent under concurrent submissions`    |
+| TC-022 | Unicode manual address              | Edge             | —                                           | `POST /api/booking/confirm` with `addressId:"manual:42 Rüe de l'Église, Paříž"`                                                                                                                     | 200 `{status:"success", bookingId:/^BK-\d{5}$/}`                                                                                                   | No                         | Manual — not captured                                                                                      |
+| TC-023 | Whitespace-tolerant postcode        | Edge             | —                                           | `POST /api/postcode/lookup` with `postcode:"\tsw1a\n1aa "`                                                                                                                                          | 200; `normalized:"SW1A 1AA"`, 13 addresses                                                                                                         | Yes                        | `automation/tests/api/postcode-lookup.spec.ts › Verify … normalizes whitespace/case`                 |
+| TC-024 | Retry-on-500                        | API failure      | Reset counter via `POST /api/testkit/reset` | 1. `POST /api/postcode/lookup {postcode:"BS1 4DJ"}` → 500 2. Repeat immediately                                                                                                                     | Call 1 → 500 `{error:"TRANSIENT_FAILURE"}`; call 2 → 200 with 6 addresses                                                                          | Yes                        | `automation/tests/functional/retry-flow.spec.ts`                                                     |
+| TC-025 | Slow postcode                       | API failure      | —                                           | `POST /api/postcode/lookup {postcode:"M1 1AE"}` with stopwatch                                                                                                                                      | Resolves in ~1200 ± 300 ms; 200 with 12 addresses; UI shows loading spinner while pending                                                          | Yes                        | `automation/tests/api/postcode-lookup.spec.ts` + manual visual check                                 |
+| TC-026 | Empty postcode result               | API failure      | —                                           | `POST /api/postcode/lookup {postcode:"EC1A 1BB"}`                                                                                                                                                   | 200 with `addresses:[]`; UI shows empty-state panel, not an error                                                                                  | Yes                        | `automation/tests/api/postcode-lookup.spec.ts`                                                       |
+| TC-027 | Method allow-list                   | API failure      | —                                           | For each endpoint try `GET/PUT/PATCH/DELETE` where not allowed                                                                                                                                      | Every unsupported method returns 405                                                                                                               | Yes                        | `automation/tests/api/*.spec.ts › Method allow-list`                                                 |
+| TC-028 | Malformed JSON body                 | API failure      | —                                           | `POST /api/booking/confirm` with raw body `not-json` (no Content-Type coercion)                                                                                                                     | 400 `{error:"INVALID_JSON"}`                                                                                                                       | Yes                        | `automation/tests/api/booking-confirm.spec.ts › Verify … 400 INVALID_JSON`                           |
+| TC-029 | Heavy waste disables small skips    | State transition | At step 2 with address selected             | 1. Toggle **Heavy waste = yes** 2. Proceed to step 3                                                                                                                                                | 2-yard and 3-yard skip cards rendered disabled with reason "Not rated for heavy waste"; `price` still present in payload                           | Yes                        | `automation/tests/e2e/heavy-waste.spec.ts` + `automation/tests/functional/state-transitions.spec.ts` |
+| TC-030 | Step-back clears downstream         | State transition | Reached step 3 with a skip selected         | 1. Click stepper back to step 1 2. Change postcode and refetch                                                                                                                                      | Address, waste flags, and skip selection are cleared; Continue on step 3 remains disabled until re-selection                                       | Yes                        | `automation/tests/functional/state-transitions.spec.ts`                                              |
+| TC-031 | Plasterboard requires option        | State transition | At step 2                                   | 1. Toggle **Plasterboard = yes** 2. Attempt to click **Next** without picking option                                                                                                                | Next disabled until `bagged` or `segregated` is chosen                                                                                             | Yes                        | `automation/tests/e2e/plasterboard.spec.ts`                                                          |
+| TC-032 | Skip leak on waste change (**BUG-1**) | State transition | At step 3 with a skip picked under general waste | 1. `SW1A 1AA` → any address → heavy=no, plasterboard=no → step 3 2. Pick **2-yard** → Next → Back → Back 3. Flip **heavy=yes** → Next → Next                                                        | Expected: selected skip cleared when waste flags change; 2-yard disabled on step 3 with Continue disabled. Actual: `selectedSkipSize` survives, Continue stays enabled, step 4 reviews *heavy+2-yard* — see `bug-reports.md#BUG-1` | Yes (failing → drives bug) | `automation/tests/functional/state-transitions.spec.ts`                                              |
+| TC-033 | VAT omission (**BUG-3**)            | State transition | At step 4 review                            | 1. Complete any happy-path booking to review step 2. Read the price breakdown                                                                                                                       | Expected: `total = subtotal + VAT`. Actual: `total = subtotal` (VAT line shown but ignored) — see `bug-reports.md#BUG-3`                           | No (UI visual)             | `./bugs/BUG-3-vat-total.png`                                                             |
+| TC-034 | Keyboard-only booking               | Accessibility    | Fresh session, mouse unused                 | 1. Tab from URL bar into the form 2. Use arrow/enter to operate address list 3. Tab through waste toggles and skip cards 4. Tab to Confirm, press Enter                                             | All controls focusable in logical order; visible focus ring; booking completes without pointer input                                               | No                         | Manual — not captured                                                                                      |
+| TC-035 | Reduced motion                      | Accessibility    | OS toggle: "Reduce motion" ON               | 1. Open / 2. Observe background aurora blobs and floating shapes                                                                                                                                    | Background is static (no animation); layout unchanged                                                                                              | No                         | Manual — not captured                                                                                      |
+| TC-036 | Screen-reader landmarks             | Accessibility    | VoiceOver/NVDA enabled                      | 1. Open / 2. Navigate by landmark and heading                                                                                                                                                       | `main` landmark exposed; each step has an `h1/h2` announced; stepper nodes have accessible names ("Step 1, current", etc.)                         | No                         | Manual — not captured                                                                                      |
+| TC-037 | Mobile layout @ 375 px              | Responsiveness   | Viewport 375×812                            | 1. Resize browser to 375 px 2. Walk steps 1–4                                                                                                                                                       | Postcode input + Find button stack vertically; skip cards go single-column; stepper compacts; no horizontal scroll at any step                     | No                         | `./screenshots/mobile/`                                                                               |
+| TC-038 | Tablet layout @ 768 px              | Responsiveness   | Viewport 768×1024                           | 1. Resize to 768 px 2. Walk to step 3                                                                                                                                                               | Skip grid shows two columns; price breakdown anchors right of the summary at step 4                                                                | No                         | Manual — not captured                                                                                      |
+
+
+---
+
+## Automated test inventory
+
+Snapshot of `npx playwright test --list --project chromium-desktop` run
+against the `refactor/automation-suite` branch. **60 unique tests** live
+under `automation/tests/`, each executed against 3 projects
+(`chromium-desktop`, `webkit-desktop`, `mobile-chrome`) per
+`automation/playwright.config.ts` → **180 test runs per full suite**.
+
+### Summary
+
+| Layer      | Spec files | Unique tests | Purpose                                                  |
+| ---------- | ---------- | ------------ | -------------------------------------------------------- |
+| API        | 4          | 43           | Direct HTTP against `/api/*`; Zod-validated responses    |
+| E2E        | 3          | 3            | Full wizard in a browser, real API, no mocks             |
+| Functional | 3          | 14           | Browser, scoped to one behaviour (retry, validation, …)  |
+| **Total**  | **10**     | **60**       |                                                          |
+
+### Per spec-file breakdown
+
+| Layer      | Spec file                                                | Tests |
+| ---------- | -------------------------------------------------------- | ----- |
+| API        | `automation/tests/api/booking-confirm.spec.ts`           | 18    |
+| API        | `automation/tests/api/postcode-lookup.spec.ts`           | 9     |
+| API        | `automation/tests/api/skips.spec.ts`                     | 8     |
+| API        | `automation/tests/api/waste-types.spec.ts`               | 8     |
+| E2E        | `automation/tests/e2e/general-waste.spec.ts`             | 1     |
+| E2E        | `automation/tests/e2e/heavy-waste.spec.ts`               | 1     |
+| E2E        | `automation/tests/e2e/plasterboard.spec.ts`              | 1     |
+| Functional | `automation/tests/functional/postcode-validation.spec.ts` | 9    |
+| Functional | `automation/tests/functional/retry-flow.spec.ts`         | 2     |
+| Functional | `automation/tests/functional/state-transitions.spec.ts`  | 3     |
+
+### Coverage mapping
+
+- **31 of 38** cases in the table above have `Automated: Yes` and cite a spec.
+- **7** are manual-only by design: TC-022 (Unicode curl check),
+  TC-033 (BUG-3 visual), TC-034–TC-036 (accessibility),
+  TC-037–TC-038 (responsive layout).
+- Some manual cases map to multiple automated tests — e.g. TC-027 (“Method
+  allow-list”) is covered by one `Method allow-list` sub-test in every API
+  spec (4 automated tests, one manual plan entry), which is why automated
+  runs exceed the 31 mapped cases.
+
+### Tags
+
+Every test carries one of three tags (see `{ tag: '@App-…' }` in the specs):
+
+- `@App-API` — API contract tests (43)
+- `@App-E2E` — full end-to-end flows (3)
+- `@App-regression` — functional / regression suite (14)
+
+Run a subset with `npx playwright test --grep @App-API` (or `-E2E`, `-regression`).
+
+---
+
+## Execution notes
+
+- Reset the server (restart `npm run dev` **or** call `POST /api/testkit/reset`) before TC-024 so the retry counter is clean.
+- The idempotency-window tests (TC-020, TC-021) must run inside a 30 s window of each other; a server restart invalidates the in-memory cache and fails the assertion.
+- For any case that currently passes automation but describes a **BUG-n**, the evidence spec is deliberately asserting the *current* (buggy) behaviour so the suite stays green; the behavioural gap is captured in [`./bug-reports.md`](./bug-reports.md). A planned follow-up will flip each assertion to the desired behaviour once the bug is fixed.
+- Manual-only cases (TC-022, TC-033, TC-034, TC-035, TC-036, TC-037, TC-038) are run against the deployed build; bug-related visuals live in [`./bugs/`](./bugs/) and are referenced from the table above. Accessibility/responsiveness cases require a live build and assistive-tech hardware, so their evidence is marked *Manual — not captured* in-table.
+
+## Changelog
+
+- **2026-04-19** — Initial 38-case catalogue aligned with automation suite on `refactor/automation-suite`.
+
