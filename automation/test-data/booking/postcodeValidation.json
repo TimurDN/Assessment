@@ -1,0 +1,12 @@
+{
+    "malformedPostcodes": [
+        "NOTAPOSTCODE",
+        "SW1A",
+        "123 456",
+        "ZZZ",
+        "SW1A 1AAA",
+        "!!!"
+    ],
+    "normalizationVariants": ["sw1a 1aa", "SW1A1AA", "  SW1A   1AA  "],
+    "emptyOrWhitespaceInputs": ["", "   ", "\t", "\n"]
+}

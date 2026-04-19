@@ -1,0 +1,14 @@
+{
+    "missingFieldCases": [
+        { "field": "postcode", "expected": "INVALID_POSTCODE", "action": "delete" },
+        { "field": "addressId", "expected": "INVALID_ADDRESS", "action": "delete" },
+        { "field": "heavyWaste", "expected": "INVALID_WASTE_FLAGS", "action": "set", "value": "no" },
+        { "field": "skipSize", "expected": "INVALID_SKIP", "action": "delete" }
+    ],
+    "invalidAddressIds": ["addr_nonexistent", "addr_sw1a_99", "not_an_id_at_all"],
+    "manualAddressExamples": [
+        "manual:42 Some Street, SW1A 1AA",
+        "manual:1 Idempotency Road, SW1A 1AA"
+    ],
+    "invalidSkipSizes": ["7-yard", "1-yard", "13-yard", "SIX-YARD"]
+}

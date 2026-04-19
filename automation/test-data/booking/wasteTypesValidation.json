@@ -1,0 +1,11 @@
+{
+    "validCombinations": [
+        { "heavyWaste": false, "plasterboard": false, "plasterboardOption": null },
+        { "heavyWaste": true, "plasterboard": false, "plasterboardOption": null },
+        { "heavyWaste": false, "plasterboard": true, "plasterboardOption": "bagged" },
+        { "heavyWaste": true, "plasterboard": true, "plasterboardOption": "segregated" },
+        { "heavyWaste": true, "plasterboard": true, "plasterboardOption": "collection" }
+    ],
+    "invalidPlasterboardOptions": [null, "", "invalid", "other"],
+    "plasterboardOptions": ["bagged", "segregated", "collection"]
+}

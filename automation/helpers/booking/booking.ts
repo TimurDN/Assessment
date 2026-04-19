@@ -2,20 +2,22 @@
  * Thin per-endpoint wrappers around {@link ApiRequestFn}.
  *
  * Keeping request plumbing out of the specs lets each test read as a
- * sequence of *intentions* ("look up SW1A", "confirm this booking") instead
- * of HTTP boilerplate. Every wrapper returns the raw `{ status, body }` —
- * callers decide which Zod schema to parse with, so error paths can still
- * assert on {@link ApiErrorSchema} without any special casing here.
+ * sequence of *intentions* ("look up SW1A", "confirm this booking")
+ * instead of HTTP boilerplate. Every wrapper returns the raw
+ * `{ status, body }` — callers decide which Zod schema to parse with,
+ * so error paths can still assert on {@link APIErrorSchema} without
+ * any special casing here.
+ *
+ * Convention notes:
+ * - URL suffixes live in `bookingConfig.api.*` (back-end) / `bookingConfig.paths.*`
+ *   (front-end) to mirror the primelabs-automation split.
+ * - Helpers never call `expect()` — specs own assertions.
  */
 import type { ApiRequestFn, ApiRequestResponse } from '../../fixtures/api/api-types';
 import { bookingConfig } from '../../config/booking';
 import type { PlasterboardOption } from '../../fixtures/api/schemas/booking/waste-types';
 import type { SkipSize } from '../../fixtures/api/schemas/booking/skips';
-import {
-    ADDRESS_IDS,
-    POSTCODES,
-    SKIP_PRICES_GBP,
-} from '../../test-data/booking/booking';
+import bookingData from '../../test-data/booking/booking.json';
 
 /** Canonical waste-types request body. */
 export type WasteTypesBody = {
@@ -45,7 +47,8 @@ export async function lookupPostcode<T = unknown>(
 ): Promise<ApiRequestResponse<T>> {
     return apiRequest<T>({
         method: 'POST',
-        url: bookingConfig.paths.POSTCODE_LOOKUP,
+        url: bookingConfig.api.POSTCODE_LOOKUP,
+        baseUrl: bookingConfig.apiUrl,
         body: { postcode } as Record<string, unknown>,
     });
 }
@@ -56,7 +59,8 @@ export async function submitWasteTypes<T = unknown>(
 ): Promise<ApiRequestResponse<T>> {
     return apiRequest<T>({
         method: 'POST',
-        url: bookingConfig.paths.WASTE_TYPES,
+        url: bookingConfig.api.WASTE_TYPES,
+        baseUrl: bookingConfig.apiUrl,
         body,
     });
 }
@@ -67,7 +71,8 @@ export async function getSkips<T = unknown>(
 ): Promise<ApiRequestResponse<T>> {
     return apiRequest<T>({
         method: 'GET',
-        url: bookingConfig.paths.SKIPS,
+        url: bookingConfig.api.SKIPS,
+        baseUrl: bookingConfig.apiUrl,
         query,
     });
 }
@@ -78,7 +83,8 @@ export async function confirmBooking<T = unknown>(
 ): Promise<ApiRequestResponse<T>> {
     return apiRequest<T>({
         method: 'POST',
-        url: bookingConfig.paths.BOOKING_CONFIRM,
+        url: bookingConfig.api.BOOKING_CONFIRM,
+        baseUrl: bookingConfig.apiUrl,
         body,
     });
 }
@@ -92,13 +98,13 @@ export function buildBookingPayload(
     overrides: Partial<BookingConfirmBody> = {},
 ): BookingConfirmBody {
     const base: BookingConfirmBody = {
-        postcode: POSTCODES.HAPPY,
-        addressId: ADDRESS_IDS.SW1A_DOWNING_10,
+        postcode: bookingData.postcodes.HAPPY,
+        addressId: bookingData.addressIds.SW1A_DOWNING_10,
         heavyWaste: false,
         plasterboard: false,
         plasterboardOption: null,
         skipSize: '4-yard',
-        price: SKIP_PRICES_GBP['4-yard'],
+        price: bookingData.skipPricesGBP['4-yard'],
     };
     return { ...base, ...overrides };
 }

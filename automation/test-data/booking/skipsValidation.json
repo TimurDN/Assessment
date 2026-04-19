@@ -1,0 +1,16 @@
+{
+    "canonicalSizes": [
+        "2-yard",
+        "3-yard",
+        "4-yard",
+        "5-yard",
+        "6-yard",
+        "8-yard",
+        "10-yard",
+        "12-yard"
+    ],
+    "booleanCoercion": {
+        "truthyAsQueryParam": [1, "1", true, "true"],
+        "falsyAsQueryParam": [0, "0", false, "false", "", "anything-else"]
+    }
+}

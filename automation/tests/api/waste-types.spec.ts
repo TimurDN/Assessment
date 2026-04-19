@@ -1,168 +1,191 @@
-/**
- * API contract & behaviour tests for `POST /api/waste-types`.
- *
- * This endpoint is a pure validator — no side effects, just accept/reject.
- * The specs therefore focus on the combinatorial contract:
- *   - every valid (heavyWaste, plasterboard, plasterboardOption) triple
- *   - every way a caller can violate the type contract (400s)
- *   - every way a caller can violate the semantic contract (422s)
- */
 import { expect, test } from '../../fixtures/pom/test-options';
 import { bookingConfig } from '../../config/booking';
 import {
     WasteTypesResponseSchema,
     type WasteTypesResponse,
-    type PlasterboardOption,
 } from '../../fixtures/api/schemas/booking/waste-types';
 import {
-    ApiErrorSchema,
-    type ApiError,
+    APIErrorSchema,
+    type APIError,
 } from '../../fixtures/api/schemas/util/common';
-import { submitWasteTypes } from '../../helpers/booking/booking';
 import {
-    invalidBooleanValues,
+    invalidBooleanTypes,
     unsupportedMethods,
 } from '../../fixtures/api/invalid-types';
+import { submitWasteTypes } from '../../helpers/booking/booking';
+import wasteTypesValidation from '../../test-data/booking/wasteTypesValidation.json';
 
-const ENDPOINT = bookingConfig.paths.WASTE_TYPES;
+const ENDPOINT = bookingConfig.api.WASTE_TYPES;
 
-const VALID_COMBINATIONS: ReadonlyArray<{
-    heavyWaste: boolean;
-    plasterboard: boolean;
-    plasterboardOption: PlasterboardOption | null;
-}> = [
-    { heavyWaste: false, plasterboard: false, plasterboardOption: null },
-    { heavyWaste: true, plasterboard: false, plasterboardOption: null },
-    { heavyWaste: false, plasterboard: true, plasterboardOption: 'bagged' },
-    { heavyWaste: true, plasterboard: true, plasterboardOption: 'segregated' },
-    { heavyWaste: true, plasterboard: true, plasterboardOption: 'collection' },
-];
+// ═══════════════════════════════════════════════════════════════
+// POST /api/waste-types - Happy path
+// ═══════════════════════════════════════════════════════════════
 
-test.describe('POST /api/waste-types', () => {
-    test.describe('Happy path', () => {
-        test(
-            'Every documented (heavyWaste, plasterboard, option) combination returns { ok: true }',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const combo of VALID_COMBINATIONS) {
-                    const { status, body } = await submitWasteTypes<WasteTypesResponse>(
-                        apiRequest,
-                        combo as unknown as Record<string, unknown>,
-                    );
-                    expect(status, `Combo ${JSON.stringify(combo)} should be 200`).toBe(200);
-                    expect(WasteTypesResponseSchema.parse(body)).toEqual({ ok: true });
-                }
-            },
-        );
-    });
+test.describe('POST /api/waste-types - Happy path', () => {
+    test(
+        'Verify POST /api/waste-types returns 200 { ok: true } for every documented combination',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const combo of wasteTypesValidation.validCombinations) {
+                const { status, body } = await submitWasteTypes<WasteTypesResponse>(
+                    apiRequest,
+                    combo as Record<string, unknown>,
+                );
+                expect(status, `Combo ${JSON.stringify(combo)} should be 200`).toBe(
+                    200,
+                );
+                expect(WasteTypesResponseSchema.parse(body)).toBeTruthy();
+                expect(body.ok).toBe(true);
+            }
+        },
+    );
+});
 
-    test.describe('Type validation (400)', () => {
-        test(
-            'Rejects non-boolean heavyWaste values with 400 INVALID_HEAVY_WASTE',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const value of invalidBooleanValues) {
-                    const { status, body } = await submitWasteTypes<ApiError>(apiRequest, {
+// ═══════════════════════════════════════════════════════════════
+// POST /api/waste-types - Type validation (400)
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/waste-types - Type validation', () => {
+    test(
+        'Verify POST /api/waste-types returns 400 INVALID_HEAVY_WASTE for non-boolean heavyWaste values',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const value of invalidBooleanTypes) {
+                const { status, body } = await submitWasteTypes<APIError>(
+                    apiRequest,
+                    {
                         heavyWaste: value,
                         plasterboard: false,
                         plasterboardOption: null,
-                    });
-                    expect(status, `heavyWaste=${JSON.stringify(value)} should be 400`).toBe(400);
-                    expect(ApiErrorSchema.parse(body).error).toBe('INVALID_HEAVY_WASTE');
-                }
-            },
-        );
+                    },
+                );
+                expect(
+                    status,
+                    `heavyWaste=${JSON.stringify(value)} should be 400`,
+                ).toBe(400);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('INVALID_HEAVY_WASTE');
+            }
+        },
+    );
 
-        test(
-            'Rejects non-boolean plasterboard values with 400 INVALID_PLASTERBOARD',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const value of invalidBooleanValues) {
-                    const { status, body } = await submitWasteTypes<ApiError>(apiRequest, {
+    test(
+        'Verify POST /api/waste-types returns 400 INVALID_PLASTERBOARD for non-boolean plasterboard values',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const value of invalidBooleanTypes) {
+                const { status, body } = await submitWasteTypes<APIError>(
+                    apiRequest,
+                    {
                         heavyWaste: false,
                         plasterboard: value,
                         plasterboardOption: null,
-                    });
-                    expect(status, `plasterboard=${JSON.stringify(value)} should be 400`).toBe(400);
-                    expect(ApiErrorSchema.parse(body).error).toBe('INVALID_PLASTERBOARD');
-                }
-            },
-        );
+                    },
+                );
+                expect(
+                    status,
+                    `plasterboard=${JSON.stringify(value)} should be 400`,
+                ).toBe(400);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('INVALID_PLASTERBOARD');
+            }
+        },
+    );
 
-        test(
-            'An empty body fails heavyWaste validation first',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                const { status, body } = await submitWasteTypes<ApiError>(apiRequest, {});
-                expect(status).toBe(400);
-                expect(ApiErrorSchema.parse(body).error).toBe('INVALID_HEAVY_WASTE');
-            },
-        );
+    test(
+        'Verify POST /api/waste-types returns 400 INVALID_HEAVY_WASTE for an empty body (heavyWaste is the first validator)',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const { status, body } = await submitWasteTypes<APIError>(apiRequest, {});
+            expect(status).toBe(400);
+            expect(APIErrorSchema.parse(body)).toBeTruthy();
+            expect(body.error).toBe('INVALID_HEAVY_WASTE');
+        },
+    );
 
-        test(
-            'Returns 400 INVALID_JSON for a body that is not valid JSON',
-            { tag: '@Booking-API' },
-            async ({ request }) => {
-                // Buffer keeps the raw bytes intact; a string would be
-                // silently JSON-encoded by Playwright into valid JSON.
-                const response = await request.post(`${bookingConfig.apiUrl}${ENDPOINT}`, {
-                    data: Buffer.from('not json'),
-                    headers: { 'Content-Type': 'application/json' },
-                });
-                expect(response.status()).toBe(400);
-                expect(ApiErrorSchema.parse(await response.json()).error).toBe('INVALID_JSON');
-            },
-        );
-    });
+    test(
+        'Verify POST /api/waste-types returns 400 INVALID_JSON for a body that is not parseable JSON',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const { status, body } = await apiRequest<APIError>({
+                method: 'POST',
+                url: ENDPOINT,
+                baseUrl: bookingConfig.apiUrl,
+                rawBody: Buffer.from('not json'),
+            });
+            expect(status).toBe(400);
+            expect(APIErrorSchema.parse(body)).toBeTruthy();
+            expect(body.error).toBe('INVALID_JSON');
+        },
+    );
+});
 
-    test.describe('Semantic validation (422)', () => {
-        test(
-            'plasterboard=true without a valid option returns 422 MISSING_PLASTERBOARD_OPTION',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const option of [null, undefined, '', 'invalid', 'other']) {
-                    const { status, body } = await submitWasteTypes<ApiError>(apiRequest, {
+// ═══════════════════════════════════════════════════════════════
+// POST /api/waste-types - Semantic validation (422)
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/waste-types - Semantic validation', () => {
+    test(
+        'Verify POST /api/waste-types returns 422 MISSING_PLASTERBOARD_OPTION when plasterboard=true and option is missing or invalid',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const option of [
+                ...wasteTypesValidation.invalidPlasterboardOptions,
+                undefined,
+            ]) {
+                const { status, body } = await submitWasteTypes<APIError>(
+                    apiRequest,
+                    {
                         heavyWaste: false,
                         plasterboard: true,
                         plasterboardOption: option,
-                    });
-                    expect(
-                        status,
-                        `plasterboardOption=${JSON.stringify(option)} should be 422`,
-                    ).toBe(422);
-                    expect(ApiErrorSchema.parse(body).error).toBe('MISSING_PLASTERBOARD_OPTION');
-                }
-            },
-        );
+                    },
+                );
+                expect(
+                    status,
+                    `plasterboardOption=${JSON.stringify(option)} should be 422`,
+                ).toBe(422);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('MISSING_PLASTERBOARD_OPTION');
+            }
+        },
+    );
 
-        test(
-            'plasterboard=false with a non-null option returns 422 UNEXPECTED_PLASTERBOARD_OPTION',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                const { status, body } = await submitWasteTypes<ApiError>(apiRequest, {
-                    heavyWaste: false,
-                    plasterboard: false,
-                    plasterboardOption: 'bagged',
-                });
-                expect(status).toBe(422);
-                expect(ApiErrorSchema.parse(body).error).toBe('UNEXPECTED_PLASTERBOARD_OPTION');
-            },
-        );
-    });
+    test(
+        'Verify POST /api/waste-types returns 422 UNEXPECTED_PLASTERBOARD_OPTION when plasterboard=false but option is set',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const { status, body } = await submitWasteTypes<APIError>(apiRequest, {
+                heavyWaste: false,
+                plasterboard: false,
+                plasterboardOption: 'bagged',
+            });
+            expect(status).toBe(422);
+            expect(APIErrorSchema.parse(body)).toBeTruthy();
+            expect(body.error).toBe('UNEXPECTED_PLASTERBOARD_OPTION');
+        },
+    );
+});
 
-    test.describe('Method allow-list', () => {
-        test(
-            'Rejects GET/PUT/PATCH/DELETE with 405',
-            { tag: '@Booking-API' },
-            async ({ apiRequest }) => {
-                for (const method of [...unsupportedMethods, 'GET'] as const) {
+// ═══════════════════════════════════════════════════════════════
+// POST /api/waste-types - Method allow-list
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/waste-types - Method allow-list', () => {
+    test(
+        'Verify POST /api/waste-types rejects GET/PUT/PATCH/DELETE with 405',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const method of [...unsupportedMethods, 'GET'] as const) {
+                await test.step(`${method} ${ENDPOINT} → 405`, async () => {
                     const { status } = await apiRequest({
                         method: method as 'GET' | 'PUT' | 'PATCH' | 'DELETE',
                         url: ENDPOINT,
+                        baseUrl: bookingConfig.apiUrl,
                     });
-                    expect(status, `${method} should be 405`).toBe(405);
-                }
-            },
-        );
-    });
+                    expect(status).toBe(405);
+                });
+            }
+        },
+    );
 });

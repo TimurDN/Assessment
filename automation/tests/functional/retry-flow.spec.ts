@@ -1,76 +1,95 @@
 import { expect, test } from '../../fixtures/pom/test-options';
 import { resetRetryCounter } from '../../helpers/booking/test-reset';
-import { ADDRESS_COUNTS, POSTCODES } from '../../test-data/booking/booking';
+import bookingData from '../../test-data/booking/booking.json';
 
-/**
- * Functional — API failure + retry behaviour.
- *
- * The `BS1 4DJ` fixture returns 500 on the first call and 200 on retry.
- * Reset the server-side counter before each test so the sequence is
- * deterministic regardless of test execution order or parallelism.
- */
-test.describe('Functional — API failure and retry', () => {
-    test.beforeEach(async ({ apiRequest }) => {
-        await resetRetryCounter(apiRequest, POSTCODES.RETRY);
+// ═══════════════════════════════════════════════════════════════
+// Booking Wizard — API Failure & Retry (functional)
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('Booking Wizard — API Failure & Retry', () => {
+    test.beforeEach(async ({ apiRequest, bookingPage }) => {
+        await test.step(
+            'GIVEN: Server-side retry counter is reset and user is on the homepage',
+            async () => {
+                await resetRetryCounter(apiRequest, bookingData.postcodes.RETRY);
+                await bookingPage.open();
+                await bookingPage.verifyPageLoaded();
+            },
+        );
     });
 
     test(
-        'BS1 4DJ surfaces an error, Retry recovers on the second attempt',
-        { tag: '@Booking-Functional' },
+        'Verify BS1 4DJ surfaces an error alert and recovers on retry',
+        { tag: '@App-regression' },
         async ({ bookingPage, page }) => {
-            await bookingPage.goto();
-
             await test.step('WHEN: User looks up BS1 4DJ', async () => {
-                await bookingPage.lookupPostcode(POSTCODES.RETRY);
+                await bookingPage.enterPostcode(bookingData.postcodes.RETRY);
             });
 
-            await test.step('THEN: Error alert with Retry is shown', async () => {
-                await bookingPage.expectLookupError();
-            });
+            await test.step(
+                'THEN: Error alert with a Retry action is shown',
+                async () => {
+                    await bookingPage.verifyPostcodeServerError();
+                },
+            );
 
-            await test.step('AND: Manual entry fallback is also offered', async () => {
-                await expect(
-                    bookingPage.postcodeError.getByRole('button', {
-                        name: /Enter address manually/,
-                    }),
-                ).toBeVisible();
-            });
+            await test.step(
+                'AND: A manual-entry fallback button is offered inside the alert',
+                async () => {
+                    await expect(
+                        bookingPage.postcodeServerError.getByRole('button', {
+                            name: /Enter address manually/,
+                        }),
+                    ).toBeVisible();
+                },
+            );
 
             await test.step('WHEN: User clicks Retry', async () => {
                 await bookingPage.retryPostcodeLookup();
             });
 
-            await test.step('THEN: Addresses load successfully', async () => {
-                await bookingPage.expectAddressResults(ADDRESS_COUNTS.BS1);
-                await expect(bookingPage.postcodeError).toBeHidden();
-                await expect(page.getByTestId('postcode-validation-error')).toBeHidden();
-            });
+            await test.step(
+                'THEN: Addresses load successfully and the error clears',
+                async () => {
+                    await bookingPage.verifyAddressListPopulated(
+                        bookingData.addressCounts.BS1,
+                    );
+                    await expect(bookingPage.postcodeServerError).toBeHidden();
+                    await expect(
+                        page.getByTestId('postcode-validation-error'),
+                    ).toBeHidden();
+                },
+            );
         },
     );
 
     test(
-        'Error state falls back to manual entry without retrying',
-        { tag: '@Booking-Functional' },
+        'Verify the error alert falls back to manual entry without retrying',
+        { tag: '@App-regression' },
         async ({ bookingPage, page }) => {
-            await bookingPage.goto();
-            await bookingPage.lookupPostcode(POSTCODES.RETRY);
-            await bookingPage.expectLookupError();
+            await test.step('WHEN: User looks up BS1 4DJ', async () => {
+                await bookingPage.enterPostcode(bookingData.postcodes.RETRY);
+                await bookingPage.verifyPostcodeServerError();
+            });
 
             await test.step(
-                'WHEN: User opens manual entry from the error alert',
+                'AND: User opens manual entry directly from the error alert',
                 async () => {
-                    await bookingPage.postcodeError
+                    await bookingPage.postcodeServerError
                         .getByRole('button', { name: 'Enter address manually' })
                         .click();
                 },
             );
 
             await test.step(
-                'THEN: Manual address form is visible and submittable',
+                'THEN: Manual address form accepts a submission and Continue enables',
                 async () => {
                     await expect(page.getByTestId('manual-address')).toBeVisible();
-                    await bookingPage.enterManualAddress('100 Temple Meads', 'Bristol');
-                    await expect(bookingPage.postcodeNextButton).toBeEnabled();
+                    await bookingPage.enterManualAddress(
+                        '100 Temple Meads',
+                        'Bristol',
+                    );
+                    await expect(page.getByTestId('postcode-next')).toBeEnabled();
                 },
             );
         },

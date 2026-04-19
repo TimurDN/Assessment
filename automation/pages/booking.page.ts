@@ -1,5 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
+import { BasePage } from './baseClasses/BasePage';
+import { bookingConfig } from '../config/booking';
 import type { SkipSize } from '../fixtures/api/schemas/booking/skips';
 import type { PlasterboardOption } from '../fixtures/api/schemas/booking/waste-types';
 import { BookingIdSchema } from '../fixtures/api/schemas/util/common';
@@ -20,24 +22,51 @@ export type WasteSelection = {
     plasterboardOption?: PlasterboardOption;
 };
 
+export type ReviewSummary = {
+    postcode: string;
+    addressContains?: string;
+    heavy?: boolean;
+    plasterboard?: boolean;
+    skipSize?: SkipSize;
+    totalGBP?: number;
+};
+
 /**
  * Page Object Model for the 4-step booking wizard.
+ *
+ * Extends {@link BasePage} (matching the primelabs-automation POM
+ * contract): every page implements {@link open}, and shared loading /
+ * navigation utilities come from the base.
  *
  * Locator priority follows Playwright recommendations:
  *   1. `getByRole` / `getByLabel` / `getByText` for user-visible elements.
  *   2. `data-testid` only to disambiguate identical-role elements
  *      (address rows, skip cards, stepper circles, toggle buttons).
  *
- * Every public action method asserts its own outcome to remove the need
- * for callers to sprinkle `expect(...).toBeVisible()` between steps.
+ * Public methods are grouped by step and by concern:
+ *   - Navigation           (`open`)
+ *   - Step 1 · Postcode    (`enterPostcode`, `selectAddress`, …)
+ *   - Step 2 · Waste       (`selectWasteTypes`, …)
+ *   - Step 3 · Skip        (`selectSkip`, …)
+ *   - Step 4 · Review      (`confirmBooking`, …)
+ *   - Verification helpers (`verifyPageLoaded`, `verifyReviewSummary`, …)
+ *
+ * `verify*` methods embed `expect(...)` so spec bodies can describe
+ * intent rather than wiring raw locators.
  */
-export class BookingPage {
-    constructor(private page: Page) {}
+export class BookingPage extends BasePage {
+    constructor(page: Page) {
+        super(page);
+    }
 
-    // ─── Locators ─────────────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────
+    // Locators
+    // ───────────────────────────────────────────────────────────────
 
     get rootHeading(): Locator {
-        return this.page.getByRole('heading', { name: 'Book a skip in four steps' });
+        return this.page.getByRole('heading', {
+            name: 'Book a skip in four easy steps',
+        });
     }
     get wizard(): Locator {
         return this.page.getByTestId('wizard');
@@ -54,23 +83,17 @@ export class BookingPage {
     get postcodeEmptyState(): Locator {
         return this.page.getByTestId('postcode-empty');
     }
-    get postcodeError(): Locator {
+    get postcodeServerError(): Locator {
         return this.page.getByTestId('postcode-error');
     }
+    get postcodeClientError(): Locator {
+        return this.page.getByTestId('postcode-validation-error');
+    }
     get postcodeRetryButton(): Locator {
-        return this.postcodeError.getByRole('button', { name: 'Retry' });
+        return this.postcodeServerError.getByRole('button', { name: 'Retry' });
     }
     get postcodeManualEntryButton(): Locator {
         return this.page.getByRole('button', { name: 'Enter address manually' });
-    }
-    get postcodeValidationError(): Locator {
-        return this.page.getByTestId('postcode-validation-error');
-    }
-    get postcodeNextButton(): Locator {
-        return this.page.getByTestId('postcode-next');
-    }
-    get wasteNextButton(): Locator {
-        return this.page.getByTestId('waste-next');
     }
     get plasterboardOptions(): Locator {
         return this.page.getByTestId('plasterboard-options');
@@ -78,112 +101,91 @@ export class BookingPage {
     get skipList(): Locator {
         return this.page.getByTestId('skip-list');
     }
+    get priceBreakdown(): Locator {
+        return this.page.getByTestId('price-breakdown');
+    }
     get confirmBookingButton(): Locator {
         return this.page.getByRole('button', { name: 'Confirm booking' });
     }
     get bookingSuccess(): Locator {
         return this.page.getByTestId('booking-success');
     }
-    get bookingId(): Locator {
+    get bookingIdLocator(): Locator {
         return this.page.getByTestId('booking-id');
     }
 
-    // ─── Navigation ───────────────────────────────────────────────────
+    /** Parameterised locator for a single address radio row by fixture id. */
+    addressOption(addressId: string): Locator {
+        return this.page.getByTestId(`address-option-${addressId}`);
+    }
+
+    /** Parameterised locator for a skip card by size label. */
+    skipCard(size: SkipSize): Locator {
+        return this.page.getByTestId(`skip-option-${size}`);
+    }
+
+    /** Parameterised locator for a single stepper circle. */
+    stepperStep(step: 1 | 2 | 3 | 4): Locator {
+        return this.page.getByTestId(`stepper-step-${step}`);
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // Navigation
+    // ───────────────────────────────────────────────────────────────
 
     /**
-     * Navigate to the booking wizard and assert the root container rendered.
-     * @returns Promise<void>
+     * Navigate to the booking flow home page and wait for the wizard
+     * card to finish rendering.
      */
-    async goto(): Promise<void> {
-        await this.page.goto('/');
+    async open(): Promise<void> {
+        await this.page.goto(bookingConfig.paths.HOME);
         await expect(this.rootHeading).toBeVisible();
         await expect(this.wizard).toBeVisible();
     }
 
-    /**
-     * Assert the wizard is currently on a given step (1–4) — validates both
-     * the visible step container and the stepper indicator state.
-     * @param step Step index (1–4).
-     * @returns Promise<void>
-     */
-    async expectStep(step: 1 | 2 | 3 | 4): Promise<void> {
-        await expect(this.page.getByTestId(`wizard-step-${step}`)).toBeVisible();
-        await expect(
-            this.page.getByTestId(`stepper-step-${step}`),
-        ).toHaveAttribute('data-state', 'current');
-    }
-
-    // ─── Step 1 · Postcode ────────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────
+    // Step 1 · Postcode
+    // ───────────────────────────────────────────────────────────────
 
     /**
-     * Fill the postcode field and click Find address. Does not assert the
-     * outcome — chain {@link expectAddressResults}, {@link expectEmptyPostcodeState},
-     * or {@link expectLookupError}.
+     * Fill the postcode input and click *Find address*. Does not assert
+     * the outcome — follow up with a `verify*` method.
+     *
      * @param postcode UK postcode in any spacing/casing.
-     * @returns Promise<void>
      */
-    async lookupPostcode(postcode: string): Promise<void> {
+    async enterPostcode(postcode: string): Promise<void> {
         await this.postcodeInput.fill(postcode);
         await this.findAddressButton.click();
     }
 
-    /**
-     * Assert the address list rendered with the expected option count.
-     * @param expectedCount Number of address rows expected.
-     * @returns Promise<void>
-     */
-    async expectAddressResults(expectedCount: number): Promise<void> {
-        await expect(this.addressList).toBeVisible({ timeout: UI_WAIT.lookup });
-        await expect(this.addressList.locator('label')).toHaveCount(expectedCount);
+    /** Clear the postcode input without triggering a lookup. */
+    async clearPostcode(): Promise<void> {
+        await this.postcodeInput.fill('');
     }
 
     /**
-     * Assert the "no addresses found" empty state for an unknown postcode.
-     * @returns Promise<void>
-     */
-    async expectEmptyPostcodeState(): Promise<void> {
-        await expect(this.postcodeEmptyState).toBeVisible({ timeout: UI_WAIT.lookup });
-        await expect(
-            this.page.getByRole('heading', { name: /No addresses found/ }),
-        ).toBeVisible();
-    }
-
-    /**
-     * Assert the postcode lookup surfaced an error with a Retry button.
-     * @returns Promise<void>
-     */
-    async expectLookupError(): Promise<void> {
-        await expect(this.postcodeError).toBeVisible({ timeout: UI_WAIT.lookup });
-        await expect(this.postcodeRetryButton).toBeVisible();
-    }
-
-    /**
-     * Click Retry inside the postcode lookup error alert.
-     * @returns Promise<void>
-     */
-    async retryPostcodeLookup(): Promise<void> {
-        await this.postcodeRetryButton.click();
-    }
-
-    /**
-     * Select an address by its fixture id (e.g. `addr_sw1a_01`) and assert the
-     * radio row ends up selected.
-     * @param addressId Fixture address id.
-     * @returns Promise<void>
+     * Select an address by its fixture id and assert the radio row ends
+     * up selected.
+     *
+     * @param addressId Fixture address id (e.g. `addr_sw1a_01`).
      */
     async selectAddress(addressId: string): Promise<void> {
-        const row = this.page.getByTestId(`address-option-${addressId}`);
+        const row = this.addressOption(addressId);
         await expect(row).toBeVisible();
         await row.click();
         await expect(row).toHaveAttribute('data-selected', 'true');
     }
 
+    /** Select the first address in the list (whatever its id is). */
+    async selectFirstAddress(): Promise<void> {
+        const first = this.addressList.locator('label').first();
+        await expect(first).toBeVisible();
+        await first.click();
+    }
+
     /**
      * Open the manual-address form, fill it, and submit. Asserts the saved
      * confirmation row is displayed afterwards.
-     * @param line1 Address line 1.
-     * @param city  City / town.
-     * @returns Promise<void>
      */
     async enterManualAddress(line1: string, city: string): Promise<void> {
         await this.postcodeManualEntryButton.click();
@@ -194,27 +196,30 @@ export class BookingPage {
         await expect(this.page.getByTestId('manual-saved')).toContainText(line1);
     }
 
-    /**
-     * Click Continue on step 1 and assert the wizard advanced to step 2.
-     * @returns Promise<void>
-     */
-    async goToStep2FromPostcode(): Promise<void> {
+    /** Click the *Retry* button inside the postcode lookup error alert. */
+    async retryPostcodeLookup(): Promise<void> {
+        await this.postcodeRetryButton.click();
+    }
+
+    /** Click Continue on step 1 and assert the wizard advanced to step 2. */
+    async clickContinueFromStep1(): Promise<void> {
         await this.page
             .getByTestId('step-postcode')
             .getByRole('button', { name: 'Continue' })
             .click();
-        await this.expectStep(2);
+        await this.verifyStep(2);
     }
 
-    // ─── Step 2 · Waste types ─────────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────
+    // Step 2 · Waste types
+    // ───────────────────────────────────────────────────────────────
 
     /**
-     * Set heavy-waste + plasterboard toggles. When `plasterboard` is true the
-     * branching UI is asserted visible; when false it must be hidden.
-     * @param selection Heavy/plasterboard flags plus optional plasterboard handling.
-     * @returns Promise<void>
+     * Set the heavy-waste and plasterboard toggles. When `plasterboard`
+     * is true, the branching options container is asserted visible;
+     * when false it must be hidden.
      */
-    async setWasteTypes(selection: WasteSelection): Promise<void> {
+    async selectWasteTypes(selection: WasteSelection): Promise<void> {
         await this.page
             .getByTestId(selection.heavy ? 'heavy-waste-yes' : 'heavy-waste-no')
             .click();
@@ -238,38 +243,142 @@ export class BookingPage {
         }
     }
 
-    /**
-     * Click Continue on step 2 and assert the wizard advanced to step 3.
-     * @returns Promise<void>
-     */
-    async goToStep3FromWaste(): Promise<void> {
+    /** Click Continue on step 2 and assert the wizard advanced to step 3. */
+    async clickContinueFromStep2(): Promise<void> {
         await this.page
             .getByTestId('step-waste')
             .getByRole('button', { name: 'Continue' })
             .click();
-        await this.expectStep(3);
+        await this.verifyStep(3);
     }
 
-    // ─── Step 3 · Skip selection ──────────────────────────────────────
+    // ───────────────────────────────────────────────────────────────
+    // Step 3 · Skip selection
+    // ───────────────────────────────────────────────────────────────
 
     /**
-     * Wait for the skip list to render and return its locator for further
-     * assertions (count, visibility, etc.).
-     * @returns Locator for the skip list.
+     * Select a (non-disabled) skip and assert it becomes the active choice.
      */
-    async waitForSkipList(): Promise<Locator> {
-        await expect(this.skipList).toBeVisible({ timeout: UI_WAIT.skipList });
-        return this.skipList;
+    async selectSkip(size: SkipSize): Promise<void> {
+        const option = this.skipCard(size);
+        await expect(option).toBeVisible();
+        await expect(option).toBeEnabled();
+        await option.click();
+        await expect(option).toHaveAttribute('data-selected', 'true');
+    }
+
+    /** Click Continue on step 3 and assert the wizard advanced to step 4. */
+    async clickContinueFromStep3(): Promise<void> {
+        await this.page
+            .getByTestId('step-skip')
+            .getByRole('button', { name: 'Continue' })
+            .click();
+        await this.verifyStep(4);
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // Step 4 · Review + confirm
+    // ───────────────────────────────────────────────────────────────
+
+    /**
+     * Click Confirm booking and wait for the success view. Returns the
+     * parsed booking ID (validated against {@link BookingIdSchema}).
+     */
+    async confirmBooking(): Promise<string> {
+        await this.confirmBookingButton.click();
+        await expect(this.bookingSuccess).toBeVisible({
+            timeout: UI_WAIT.confirm,
+        });
+        const raw = (await this.bookingIdLocator.innerText()).trim();
+        return BookingIdSchema.parse(raw);
+    }
+
+    // ───────────────────────────────────────────────────────────────
+    // Verification helpers
+    // ───────────────────────────────────────────────────────────────
+
+    /** Assert the booking homepage has finished rendering. */
+    async verifyPageLoaded(): Promise<void> {
+        await expect(this.rootHeading).toBeVisible();
+        await expect(this.wizard).toBeVisible();
+        await this.waitForPageLoad();
     }
 
     /**
-     * Assert a given skip size is rendered disabled with the expected reason.
-     * @param size   Skip size label.
-     * @param reason Exact disabled-reason text.
-     * @returns Promise<void>
+     * Assert the wizard is on the given step — validates both the step
+     * container and the stepper indicator state.
      */
-    async expectSkipDisabled(size: SkipSize, reason: string): Promise<void> {
-        const option = this.page.getByTestId(`skip-option-${size}`);
+    async verifyStep(step: 1 | 2 | 3 | 4): Promise<void> {
+        await expect(this.page.getByTestId(`wizard-step-${step}`)).toBeVisible();
+        await expect(this.stepperStep(step)).toHaveAttribute(
+            'data-state',
+            'current',
+        );
+    }
+
+    /**
+     * Assert the address list rendered. When `expectedCount` is given,
+     * asserts the exact row count.
+     */
+    async verifyAddressListPopulated(expectedCount?: number): Promise<void> {
+        await expect(this.addressList).toBeVisible({ timeout: UI_WAIT.lookup });
+        if (expectedCount !== undefined) {
+            await expect(this.addressList.locator('label')).toHaveCount(
+                expectedCount,
+            );
+        }
+    }
+
+    /** Assert the "no addresses found" empty-state block is visible. */
+    async verifyEmptyPostcodeState(): Promise<void> {
+        await expect(this.postcodeEmptyState).toBeVisible({
+            timeout: UI_WAIT.lookup,
+        });
+        await expect(
+            this.page.getByRole('heading', { name: /No addresses found/ }),
+        ).toBeVisible();
+    }
+
+    /**
+     * Assert an inline client-side postcode validation error is shown.
+     * (Use {@link verifyPostcodeServerError} for the API-surfaced alert.)
+     */
+    async verifyPostcodeClientError(): Promise<void> {
+        await expect(this.postcodeClientError).toBeVisible({
+            timeout: UI_WAIT.lookup,
+        });
+    }
+
+    /**
+     * Assert the postcode lookup surfaced a server-side error alert with a
+     * Retry button (used for the BS1 4DJ fixture and for 500 responses).
+     */
+    async verifyPostcodeServerError(): Promise<void> {
+        await expect(this.postcodeServerError).toBeVisible({
+            timeout: UI_WAIT.lookup,
+        });
+        await expect(this.postcodeRetryButton).toBeVisible();
+    }
+
+    /**
+     * Assert *any* postcode error surfaced — client-side or server-side.
+     * Useful for functional tests that only care that the input was
+     * rejected, not which layer rejected it.
+     */
+    async verifyAnyPostcodeError(): Promise<void> {
+        const clientError = this.postcodeClientError;
+        const serverError = this.postcodeServerError;
+        await expect(clientError.or(serverError)).toBeVisible({
+            timeout: UI_WAIT.lookup,
+        });
+    }
+
+    /**
+     * Assert a given skip size is rendered disabled and carries the
+     * expected reason text.
+     */
+    async verifySkipDisabled(size: SkipSize, reason: string): Promise<void> {
+        const option = this.skipCard(size);
         await expect(option).toHaveAttribute('data-disabled', 'true');
         await expect(option).toBeDisabled();
         await expect(
@@ -277,83 +386,66 @@ export class BookingPage {
         ).toHaveText(reason);
     }
 
-    /**
-     * Select a (non-disabled) skip and assert it becomes the active choice.
-     * @param size Skip size label.
-     * @returns Promise<void>
-     */
-    async selectSkip(size: SkipSize): Promise<void> {
-        const option = this.page.getByTestId(`skip-option-${size}`);
-        await expect(option).toBeVisible();
-        await expect(option).toBeEnabled();
-        await option.click();
-        await expect(option).toHaveAttribute('data-selected', 'true');
+    /** Assert the skip list rendered with the expected number of cards. */
+    async verifySkipsListed(expectedCount: number): Promise<void> {
+        await expect(this.skipList).toBeVisible({ timeout: UI_WAIT.skipList });
+        await expect(
+            this.skipList.getByRole('button'),
+        ).toHaveCount(expectedCount);
     }
-
-    /**
-     * Click Continue on step 3 and assert the wizard advanced to step 4.
-     * @returns Promise<void>
-     */
-    async goToStep4FromSkip(): Promise<void> {
-        await this.page
-            .getByTestId('step-skip')
-            .getByRole('button', { name: 'Continue' })
-            .click();
-        await this.expectStep(4);
-    }
-
-    // ─── Step 4 · Review + confirm ────────────────────────────────────
 
     /**
      * Assert the review summary matches the expected booking snapshot.
-     * @param expected Expected field values on the review page.
-     * @returns Promise<void>
+     * Any field left `undefined` is skipped.
      */
-    async expectReviewSummary(expected: {
-        postcode: string;
-        addressContains: string;
-        heavy: boolean;
-        plasterboard: boolean;
-        skipSize: SkipSize;
-    }): Promise<void> {
-        await expect(this.page.getByTestId('review-postcode')).toContainText(
-            expected.postcode,
-        );
-        await expect(this.page.getByTestId('review-address')).toContainText(
-            expected.addressContains,
-        );
-        await expect(this.page.getByTestId('review-heavy')).toContainText(
-            expected.heavy ? 'Yes' : 'No',
-        );
-        await expect(this.page.getByTestId('review-plasterboard')).toContainText(
-            expected.plasterboard ? 'Yes' : 'No',
-        );
-        await expect(this.page.getByTestId('review-skip')).toContainText(
-            expected.skipSize,
-        );
+    async verifyReviewSummary(expected: ReviewSummary): Promise<void> {
+        if (expected.postcode) {
+            await expect(this.page.getByTestId('review-postcode')).toContainText(
+                expected.postcode,
+            );
+        }
+        if (expected.addressContains) {
+            await expect(this.page.getByTestId('review-address')).toContainText(
+                expected.addressContains,
+            );
+        }
+        if (expected.heavy !== undefined) {
+            await expect(this.page.getByTestId('review-heavy')).toContainText(
+                expected.heavy ? 'Yes' : 'No',
+            );
+        }
+        if (expected.plasterboard !== undefined) {
+            await expect(
+                this.page.getByTestId('review-plasterboard'),
+            ).toContainText(expected.plasterboard ? 'Yes' : 'No');
+        }
+        if (expected.skipSize) {
+            await expect(this.page.getByTestId('review-skip')).toContainText(
+                expected.skipSize,
+            );
+        }
+        if (expected.totalGBP !== undefined) {
+            await this.verifyPriceTotal(expected.totalGBP);
+        }
     }
 
-    /**
-     * Assert the price breakdown total equals the expected GBP integer.
-     * @param expected Expected total (GBP integer).
-     * @returns Promise<void>
-     */
-    async expectPriceTotal(expected: number): Promise<void> {
-        await expect(this.page.getByTestId('price-breakdown')).toBeVisible();
+    /** Assert the price breakdown total equals the expected GBP integer. */
+    async verifyPriceTotal(expectedGBP: number): Promise<void> {
+        await expect(this.priceBreakdown).toBeVisible();
         await expect(this.page.getByTestId('price-total')).toContainText(
-            `£${expected}`,
+            `£${expectedGBP}`,
         );
     }
 
     /**
-     * Click Confirm booking, wait for the success view, and return the parsed
-     * booking ID (validated against {@link BookingIdSchema}).
-     * @returns Booking reference (`BK-xxxxx`).
+     * Assert the booking success view rendered and the booking reference
+     * has the canonical `BK-#####` shape.
      */
-    async confirmBooking(): Promise<string> {
-        await this.confirmBookingButton.click();
-        await expect(this.bookingSuccess).toBeVisible({ timeout: UI_WAIT.confirm });
-        const raw = (await this.bookingId.innerText()).trim();
+    async verifyBookingSuccess(): Promise<string> {
+        await expect(this.bookingSuccess).toBeVisible({
+            timeout: UI_WAIT.confirm,
+        });
+        const raw = (await this.bookingIdLocator.innerText()).trim();
         return BookingIdSchema.parse(raw);
     }
 }

@@ -1,0 +1,268 @@
+---
+description: Conventions and context for all Playwright API tests — patterns, endpoint context, known bugs, cleanup
+globs: automation/tests/api/**/*.spec.ts
+alwaysApply: false
+---
+
+# API Tests — Conventions & Context
+
+This is the **QA automation framework** for the SkipWise booking flow. Playwright v1.56 + TypeScript.
+
+## Imports & Boilerplate
+
+```typescript
+import { expect, test } from "../../fixtures/pom/test-options";
+import { bookingConfig } from "../../config/booking";
+import { faker } from "@faker-js/faker";
+// Zod schemas from fixtures/api/schemas/booking/<resource>
+// Helpers from helpers/booking/<resource>
+// Invalid-type arrays from fixtures/api/invalid-types
+// Test data from test-data/booking/*.json
+```
+
+URL bases at module scope:
+
+```typescript
+const ENDPOINT = bookingConfig.api.POSTCODE_LOOKUP;
+```
+
+No authentication tokens — the booking API is unauthenticated by design (public demo). All requests go through the `apiRequest` fixture with `baseUrl: bookingConfig.apiUrl`.
+
+## File & Test Structure
+
+- One spec file per API endpoint (`postcode-lookup.spec.ts`, `waste-types.spec.ts`, `skips.spec.ts`, `booking-confirm.spec.ts`).
+- One `test.describe` per endpoint group — `"METHOD /path - Happy path"`, `"METHOD /path - Validation"`, `"METHOD /path - Method allow-list"`, etc. Keep describes flat; do not nest describes inside each other.
+- Sections separated by `// ═══ METHOD /endpoint - Description ═══` banners.
+- Every test: `{ tag: "@App-API" }`.
+- Title: `"Verify METHOD /path <expected behavior>"`.
+- Destructure `{ apiRequest }` from the test fixture.
+
+## Helpers & Schemas
+
+- **Helpers** (`helpers/booking/booking.ts`): thin per-endpoint wrappers that take `apiRequest` and a payload/query object, returning `Promise<ApiRequestResponse<T>>`. Helpers NEVER call `expect()` — specs own assertions. See `lookupPostcode`, `submitWasteTypes`, `getSkips`, `confirmBooking`.
+- **Body builders**: `buildBookingPayload({ overrides })` returns a valid default payload that specs mutate per scenario to trigger specific errors (e.g. `{ price: 1 }` → PRICE_MISMATCH).
+- **Zod schemas** (`fixtures/api/schemas/booking/<resource>.ts`): validate every response. Prefer `z.strictObject()` for new schemas. Existing ones use `z.object()` and will migrate incrementally.
+- **Invalid-type arrays** (`fixtures/api/invalid-types.ts`): `invalidString`, `invalidStringTypes`, `invalidBoolean`, `invalidBooleanTypes`, `invalidInteger`, `invalidIntegerTypes`, `invalidIntegerStrictTypes`, `invalidObject`, `invalidObjectTypes`, `specialChars`, `boundaryString`, plus domain-specific `malformedPostcodes` and `unsupportedMethods`.
+
+## Assertion Patterns
+
+- **200/201**: `expect(status).toBe(200)` + `expect(Schema.parse(body)).toBeTruthy()` + business-logic field assertions.
+- **400/409**: `expect(APIErrorSchema.parse(body)).toBeTruthy()` + `expect(body.error).toBe("CODE")`.
+- **422**: `expect(APIErrorSchema.parse(body)).toBeTruthy()` + `expect(body.error).toBe("CODE")`.
+- **500**: `expect(APIErrorSchema.parse(body)).toBeTruthy()` + `expect(body.error).toBe("UPSTREAM_ERROR")` (BS1 4DJ fixture only).
+- **405**: `expect(status).toBe(405)` — Next.js returns an empty body for undeclared methods, so no schema parse.
+
+## Test Coverage Checklist (per endpoint)
+
+1. Happy path (200 + schema + key fields)
+2. Normalization / coercion (postcode spacing/casing; query-param booleans for `/skips`)
+3. Empty results (EC1A 1BB → empty address list)
+4. Deterministic fixture behaviour (M1 1AE latency, BS1 4DJ retry)
+5. Missing required fields (400, each omitted individually via data-driven loops)
+6. Invalid field values (loop over invalid-type arrays → 400)
+7. Semantic validation (422 for `INVALID_POSTCODE`, `MISSING_PLASTERBOARD_OPTION`, `UNEXPECTED_PLASTERBOARD_OPTION`, `ADDRESS_NOT_FOUND`, `SKIP_NOT_FOUND`)
+8. Business-rule conflicts (409 for `SKIP_DISABLED`, `PRICE_MISMATCH`)
+9. Idempotency (confirm endpoint — repeated identical submission returns same `bookingId` with `idempotent: true`)
+10. Mutation cross-check (changing any field produces a fresh `bookingId`)
+11. Unparseable JSON → 400 INVALID_JSON — use `apiRequest({ rawBody: Buffer.from(...) })`; string `body` would be silently JSON-encoded by Playwright
+12. Method Not Allowed — **405 for unsupported methods** (see below)
+
+## PATCH vs PUT Testing
+
+This is critical — always verify the API actually behaves as PATCH (partial) or PUT (full replace). The booking-flow API currently has no PATCH or PUT endpoints; this section documents the pattern so it applies consistently when one is added.
+
+**PATCH (partial update):**
+- **Test EACH updatable field individually** — one `test()` or `test.step()` per field with GET-before + GET-after to prove partial preservation.
+- Empty body `{}` → 400.
+- Invalid field types → 400 (loop over `invalidIntegerTypes`, `invalidStringTypes`, etc.).
+- Immutable fields must NOT be in PATCH body or must be rejected.
+- Non-existent ID → 404 (watch for bugs returning 400).
+- Duplicate/conflict → 409.
+
+Per-field isolation pattern (repeat for EACH updatable field):
+
+```typescript
+test("Verify PATCH /resource/:id updates ONLY name", async ({ apiRequest }) => {
+  await test.step("GET current state before PATCH", async () => {
+    const { body } = await getResource(apiRequest, id);
+    before = body;
+  });
+  await test.step("PATCH with only name", async () => {
+    const { status } = await updateResource(apiRequest, id, { name: newName });
+    expect(status).toBe(200);
+  });
+  await test.step("GET and verify name changed, ALL other fields preserved", async () => {
+    const { body } = await getResource(apiRequest, id);
+    expect(body.name).toBe(newName);
+    // ... assert every other field matches `before`
+  });
+});
+```
+
+"One invalid + rest valid" validation pattern — proves the API validates each field independently:
+
+```typescript
+const validBody = { name: before.name, target: before.target, checkInterval: before.checkInterval };
+
+for (const [field, invalidValues] of Object.entries({
+  name: invalidStringTypes,
+  target: invalidStringTypes,
+  checkInterval: invalidIntegerTypes,
+})) {
+  for (const invalid of invalidValues) {
+    test(`Verify PATCH rejects invalid ${field}: ${JSON.stringify(invalid)}`, async ({ apiRequest }) => {
+      const body = { ...validBody, [field]: invalid };
+      const { status } = await updateResource(apiRequest, id, body);
+      expect(status).toBe(400);
+    });
+  }
+}
+```
+
+**PUT (full replace):**
+- Send ALL required fields → 200. Verify full replacement.
+- **Test EACH field individually** — send all required fields but change only ONE per test, GET-after to prove only that field changed and all others match the new body.
+- Omit one required field → 400 (PUT requires the complete object).
+- Verify fields NOT in PUT body are reset/cleared (not preserved like PATCH).
+
+**405 Method Not Allowed:**
+- Test unsupported methods in a single test with a `for` loop **inside** the test block — do NOT loop outside `test()` as that creates separate tests per method:
+
+```typescript
+test("Verify unsupported methods return 405", { tag: "@App-API" }, async ({ apiRequest }) => {
+  for (const method of [...unsupportedMethods, "GET"] as const) {
+    await test.step(`${method} ${ENDPOINT} → 405`, async () => {
+      const { status } = await apiRequest({
+        method: method as "GET" | "PUT" | "PATCH" | "DELETE",
+        url: ENDPOINT,
+        baseUrl: bookingConfig.apiUrl,
+      });
+      expect(status).toBe(405);
+    });
+  }
+});
+```
+
+## Cleanup & Defensive Guards
+
+- The booking API has no persistent resources to delete — bookings live only in an in-memory idempotency cache.
+- `test.beforeEach` resets the BS1 4DJ retry counter for specs that exercise the retry fixture (via `resetRetryCounter` helper).
+- If a validation test unexpectedly returns 200 (possible bug), capture the booking ID for documentation but don't mutate shared state.
+- Bugs: annotate inline with `// BUG:` comments.
+
+### Setup-Restore Pattern
+
+When tests modify server-side state (e.g. the BS1 retry counter), capture the initial state in `beforeAll` and restore it in `afterAll` so tests are non-destructive:
+
+```typescript
+test.beforeEach(async ({ apiRequest }) => {
+  await resetRetryCounter(apiRequest, bookingData.postcodes.RETRY);
+});
+```
+
+Use this whenever tests touch shared mutable fixture state.
+
+## Test Data Externalization
+
+Fixed test constants live in `test-data/booking/*.json` — keep test logic free of magic values:
+
+| What | File | Examples |
+|------|------|----------|
+| Canonical constants | `test-data/booking/booking.json` | Postcodes, address counts, skip catalogue, price map, disabled reasons |
+| Postcode validation | `test-data/booking/postcodeValidation.json` | `malformedPostcodes`, `normalizationVariants` |
+| Waste types | `test-data/booking/wasteTypesValidation.json` | `validCombinations`, `invalidPlasterboardOptions` |
+| Skips | `test-data/booking/skipsValidation.json` | `canonicalSizes`, `booleanCoercion` |
+| Booking confirm | `test-data/booking/bookingConfirmValidation.json` | `missingFieldCases`, `invalidAddressIds`, `invalidSkipSizes` |
+
+```typescript
+import bookingData from "../../test-data/booking/booking.json";
+import postcodeValidation from "../../test-data/booking/postcodeValidation.json";
+const { malformedPostcodes, normalizationVariants } = postcodeValidation;
+```
+
+- Use JSON files for values that are **fixed** across all tests (IDs, boundaries, config).
+- Use `faker` for values that must be **unique per run** (manual address strings, booking markers).
+- Never hardcode postcodes, skip sizes, or prices directly in test files — pull them from `booking.json`.
+
+## Multi-Step & E2E API Tests
+
+- Use `test.step()` for setup-then-verify flows (BS1 retry sequence, idempotency pair, lookup → skips → confirm chain).
+- The cross-endpoint `lookup → skips → confirm` chain demonstrates that data returned by upstream endpoints (address ID, skip size/price) composes into a valid payload for `POST /api/booking/confirm`.
+
+---
+
+## Endpoint Context: POST /api/postcode/lookup
+
+- **Request**: `{ "postcode": "<UK postcode>" }`. Any casing / spacing accepted; the API normalizes internally.
+- **Response 200**: `{ postcode: "NORMALIZED", addresses: Address[] }`. `addresses` may be empty (EC1A 1BB).
+- **Errors**: 400 INVALID_JSON, 400 MISSING_POSTCODE, 422 INVALID_POSTCODE, 500 UPSTREAM_ERROR (BS1 4DJ first call only).
+- **Deterministic fixtures**:
+  - `SW1A 1AA` → 13 addresses, first = 10 Downing Street.
+  - `EC1A 1BB` → 0 addresses (empty-state fixture).
+  - `M1 1AE` → 12 Manchester addresses after ~1.2s simulated latency.
+  - `BS1 4DJ` → 500 UPSTREAM_ERROR on first call, then 6 Bristol addresses on retry. Reset counter via `POST /api/testkit/reset`.
+- **Helpers**: `lookupPostcode(apiRequest, postcode)`.
+- **Schemas**: `PostcodeLookupRequestSchema`, `PostcodeLookupResponseSchema`, `AddressSchema`.
+
+## Endpoint Context: POST /api/waste-types
+
+- **Request**: `{ heavyWaste: boolean, plasterboard: boolean, plasterboardOption: "bagged" | "segregated" | "collection" | null }`. All three are required.
+- **Response 200**: `{ ok: true }`.
+- **Errors**: 400 INVALID_JSON, 400 INVALID_HEAVY_WASTE, 400 INVALID_PLASTERBOARD (validated in that order — empty body hits INVALID_HEAVY_WASTE first), 422 MISSING_PLASTERBOARD_OPTION (plasterboard=true with missing/invalid option), 422 UNEXPECTED_PLASTERBOARD_OPTION (plasterboard=false with non-null option).
+- **Helpers**: `submitWasteTypes(apiRequest, body)`.
+- **Schemas**: `WasteTypesRequestSchema`, `WasteTypesResponseSchema`, `PlasterboardOptionSchema`.
+
+## Endpoint Context: GET /api/skips
+
+- **Query**: `postcode` (required), `heavyWaste` (optional, coerced — `"1"`/`"true"` truthy, everything else falsy), `plasterboard` (optional, same coercion).
+- **Response 200**: `{ skips: Skip[] }` — always exactly 8 entries, canonical size order `2-yard` → `12-yard`.
+- **Disabled logic**:
+  - Default: 10-yard and 12-yard disabled with "Not available in your area".
+  - `heavyWaste=true`: additionally disables 2-yard and 3-yard with "Not rated for heavy waste".
+  - `plasterboard=true`: disables 2-yard with "Too small for segregated plasterboard".
+  - Both flags: heavy-waste reason takes **precedence** on the 2-yard.
+- **Errors**: 400 MISSING_POSTCODE, 422 INVALID_POSTCODE.
+- **Helpers**: `getSkips(apiRequest, query)`.
+- **Schemas**: `SkipsResponseSchema`, `SkipSchema`, `SkipSizeSchema`.
+
+## Endpoint Context: POST /api/booking/confirm
+
+- **Request**: `{ postcode, addressId, heavyWaste, plasterboard, plasterboardOption, skipSize, price }`. `addressId` accepts the fixture IDs (`addr_sw1a_01` etc.) OR any string prefixed with `manual:` for manual entries.
+- **Response 200**: `{ status: "success", bookingId: "BK-#####", idempotent?: true }`. The `idempotent` flag appears on repeat submissions within a 30-second window.
+- **Validation order** (first failure wins):
+  1. `INVALID_JSON` (400)
+  2. `INVALID_POSTCODE` (400 non-string / 422 malformed)
+  3. `INVALID_ADDRESS` (400) → `ADDRESS_NOT_FOUND` (422)
+  4. `INVALID_WASTE_FLAGS` (400)
+  5. `INVALID_SKIP` (400) → `SKIP_NOT_FOUND` (422) → `SKIP_DISABLED` (409)
+  6. `PRICE_MISMATCH` (409)
+- **Helpers**: `confirmBooking(apiRequest, body)`, `buildBookingPayload({ overrides })`.
+- **Schemas**: `BookingConfirmRequestSchema`, `BookingConfirmResponseSchema`, `BookingIdSchema`.
+- **Idempotency**: in-memory, 30-second window, keyed on a stable JSON signature of the payload. Mutating any field (including `plasterboardOption`) mints a fresh bookingId.
+- **Cross-endpoint chain**: `lookupPostcode → getSkips → confirmBooking` is the canonical real-world flow. The `End-to-end chain` describe covers this.
+
+## Endpoint Context: POST /api/testkit/reset
+
+- **Test-only endpoint** — returns 403 FORBIDDEN in production (`NODE_ENV === "production"`).
+- **Request**: `{ postcode: "BS1 4DJ" }` (defaults to BS14DJ when body is empty or malformed).
+- **Response 200**: `{ ok: true, reset: "BS14DJ" }`.
+- **Helpers**: `resetRetryCounter(apiRequest, postcode)`.
+- **Schemas**: `TestResetResponseSchema`.
+
+## Known Bugs
+
+Document any bugs discovered during testing here with `// BUG:` annotations in the spec file and a short summary below so they're visible at a glance.
+
+- `// BUG-1 (state transition, High)`: `set-postcode-result` reducer leaves `selectedSkipSize`, `heavyWaste`, `plasterboard`, `plasterboardOption`, and `skips` untouched. Editing the postcode via Back preserves the old skip selection.
+- `// BUG-2 (validation UX, Medium)`: UI postcode validator only checks `length >= 5` so strings like "ABCDE" hit the API and surface a server-side error rather than the inline client-side message.
+- `// BUG-3 (price calculation, High)`: Review total omits VAT — `total = subtotal` instead of `subtotal + vat`.
+
+## Things to Avoid
+
+- **No hardcoded URLs or postcodes** in test files — pull from `config/booking.ts` and `test-data/booking/booking.json`.
+- **No commented-out code** in final output — delete dead code; use `// TODO:` or `// BUG:` annotations only for tracked items.
+- **No `test.fixme()` without a linked bug report** — if skipping a test, explain why in a comment.
+- **No duplicate test coverage** — if a validation scenario is already covered in another spec, don't re-test it.
+- **No assertions on exact error message text** unless the message is part of the API contract (e.g. PRICE_MISMATCH includes the expected price, which we do assert).
+- **No inline sleep / polling** — use Playwright's built-in retry mechanisms or helper polling functions with explicit timeout and interval.
+- **Raw-body requests go through `apiRequest({ rawBody: Buffer.from(...) })`** — do not drop to `request.post` / `response.json()` for this. `rawBody` exists specifically so INVALID_JSON specs stay idiomatic. Passing a string to Playwright's raw `request.post({ data })` silently JSON-encodes it, which is why `rawBody` takes a `Buffer`.
