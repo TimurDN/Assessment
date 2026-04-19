@@ -1,7 +1,7 @@
 /**
  * Central configuration for the booking-flow automation suite.
  *
- * Shape mirrors `primelabs-automation/config/app.ts`:
+ * Shape:
  *   - `baseUrl` / `apiUrl`: resolved from env with sensible defaults.
  *   - `paths`: **front-end** route segments (used by POMs).
  *   - `api`:   **back-end** route suffixes (joined with `apiUrl` in helpers).

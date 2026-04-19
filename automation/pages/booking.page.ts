@@ -34,9 +34,8 @@ export type ReviewSummary = {
 /**
  * Page Object Model for the 4-step booking wizard.
  *
- * Extends {@link BasePage} (matching the primelabs-automation POM
- * contract): every page implements {@link open}, and shared loading /
- * navigation utilities come from the base.
+ * Extends {@link BasePage}: every page implements {@link open},
+ * and shared loading / navigation utilities come from the base.
  *
  * Locator priority follows Playwright recommendations:
  *   1. `getByRole` / `getByLabel` / `getByText` for user-visible elements.
