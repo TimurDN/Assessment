@@ -275,6 +275,143 @@ test.describe('POST /api/booking/confirm - Validation', () => {
             expect(body.error).toBe('INVALID_JSON');
         },
     );
+
+    test(
+        'Verify POST /api/booking/confirm is strictly case-sensitive on skipSize ("4-YARD" is rejected)',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const payload = {
+                ...buildBookingPayload(),
+                skipSize: '4-YARD',
+            };
+            const { status, body } = await confirmBooking<APIError>(
+                apiRequest,
+                payload as unknown as Record<string, unknown>,
+            );
+            expect(status).toBe(422);
+            expect(APIErrorSchema.parse(body)).toBeTruthy();
+            expect(body.error).toBe('SKIP_NOT_FOUND');
+        },
+    );
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /api/booking/confirm - Edge cases & contract pinning
+// ═══════════════════════════════════════════════════════════════
+
+test.describe('POST /api/booking/confirm - Edge cases', () => {
+    /**
+     * Pins current loose behavior of the manual-address gate.
+     *
+     * The server accepts any addressId whose value starts with the literal
+     * prefix "manual:" — including the empty string `manual:` and
+     * whitespace-only `manual:   `. Arguably this should return
+     * 422 ADDRESS_NOT_FOUND (no actual address was captured). This test
+     * documents the contract so a future tightening is an intentional,
+     * visible change.
+     */
+    test(
+        'Verify POST /api/booking/confirm accepts an empty "manual:" addressId (contract pinning)',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            for (const addressId of ['manual:', 'manual:   ']) {
+                const payload = buildBookingPayload({ addressId });
+                const { status, body } = await confirmBooking<BookingConfirmResponse>(
+                    apiRequest,
+                    payload as unknown as Record<string, unknown>,
+                );
+                expect(status, `addressId="${addressId}" should be 200`).toBe(200);
+                expect(BookingConfirmResponseSchema.parse(body)).toBeTruthy();
+                expect(body.status).toBe('success');
+                expect(body.bookingId).toMatch(/^BK-\d{5}$/);
+            }
+        },
+    );
+
+    test(
+        'Verify POST /api/booking/confirm returns 409 PRICE_MISMATCH for boundary price values (negative, zero, float, string)',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const boundaryPrices: Array<number | string> = [-140, 0, 139.99, '140'];
+            for (const price of boundaryPrices) {
+                const payload = {
+                    ...buildBookingPayload({ skipSize: '4-yard' }),
+                    price,
+                };
+                const { status, body } = await confirmBooking<APIError>(
+                    apiRequest,
+                    payload as unknown as Record<string, unknown>,
+                );
+                expect(status, `price=${String(price)} should be 409`).toBe(409);
+                expect(APIErrorSchema.parse(body)).toBeTruthy();
+                expect(body.error).toBe('PRICE_MISMATCH');
+            }
+        },
+    );
+
+    /**
+     * Contract pinning: `/api/waste-types` rejects a plasterboardOption set
+     * while `plasterboard:false`, but `/api/booking/confirm` does not
+     * re-validate that pairing. This test documents the gap so downstream
+     * callers can rely on upstream gates (or the gap gets closed knowingly).
+     */
+    test(
+        'Verify POST /api/booking/confirm accepts a plasterboardOption while plasterboard=false (contract gap vs /api/waste-types)',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const payload = buildBookingPayload({
+                plasterboard: false,
+                plasterboardOption: 'bagged',
+            });
+            const { status, body } = await confirmBooking<BookingConfirmResponse>(
+                apiRequest,
+                payload as unknown as Record<string, unknown>,
+            );
+            expect(status).toBe(200);
+            expect(BookingConfirmResponseSchema.parse(body)).toBeTruthy();
+            expect(body.status).toBe('success');
+        },
+    );
+
+    test(
+        'Verify POST /api/booking/confirm is idempotent under concurrent submissions of the same payload',
+        { tag: '@App-API' },
+        async ({ apiRequest }) => {
+            const payload = buildBookingPayload({
+                addressId: bookingConfirmValidation.manualAddressExamples[1],
+                skipSize: '8-yard',
+                price: bookingData.skipPricesGBP['8-yard'],
+            });
+
+            const results = await Promise.all(
+                Array.from({ length: 5 }, () =>
+                    confirmBooking<BookingConfirmResponse>(
+                        apiRequest,
+                        payload as unknown as Record<string, unknown>,
+                    ),
+                ),
+            );
+
+            for (const { status, body } of results) {
+                expect(status).toBe(200);
+                expect(BookingConfirmResponseSchema.parse(body)).toBeTruthy();
+                expect(body.status).toBe('success');
+            }
+
+            const ids = new Set(results.map((r) => r.body.bookingId));
+            expect(
+                ids.size,
+                `all concurrent calls must share one bookingId (got ${[...ids].join(', ')})`,
+            ).toBe(1);
+
+            const idempotentFlags = results.map((r) => r.body.idempotent === true);
+            const idempotentCount = idempotentFlags.filter(Boolean).length;
+            expect(
+                idempotentCount,
+                'at most one response may omit the idempotent flag (the writer); the rest must echo idempotent=true',
+            ).toBeGreaterThanOrEqual(results.length - 1);
+        },
+    );
 });
 
 // ═══════════════════════════════════════════════════════════════
