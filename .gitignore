@@ -27,6 +27,7 @@ next-env.d.ts
 /automation/blob-report/
 /automation/playwright/.cache/
 /automation/.auth/
+/test-results/
 
 # IDE
 .vscode/

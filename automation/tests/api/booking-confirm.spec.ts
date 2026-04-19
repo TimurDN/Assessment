@@ -15,10 +15,25 @@ import {
     getSkips,
     lookupPostcode,
 } from '../../helpers/booking/booking';
+import { resetRetryCounter } from '../../helpers/booking/test-reset';
 import bookingData from '../../test-data/booking/booking.json';
 import bookingConfirmValidation from '../../test-data/booking/bookingConfirmValidation.json';
 
 const ENDPOINT = bookingConfig.api.BOOKING_CONFIRM;
+
+// The booking-confirm endpoint maintains a 30s in-memory idempotency
+// cache shared across workers. We run this file serially so the
+// blanket cache-clear in beforeEach can never wipe a sibling test's
+// fresh write mid-assertion (observed as flakes in parallel mode).
+test.describe.configure({ mode: 'serial' });
+
+// Clear the server-side idempotency cache before every test so
+// re-running a spec within 30s (via ▶ in the Test Explorer, watch
+// mode, or back-to-back CLI runs) never returns a cached bookingId
+// when the test expects a fresh write.
+test.beforeEach(async ({ apiRequest }) => {
+    await resetRetryCounter(apiRequest, 'BS1 4DJ', { allBookings: true });
+});
 
 // ═══════════════════════════════════════════════════════════════
 // POST /api/booking/confirm - Happy path
@@ -125,6 +140,8 @@ test.describe('POST /api/booking/confirm - Idempotency', () => {
                 mutated as unknown as Record<string, unknown>,
             );
 
+            expect(a.status).toBe(200);
+            expect(b.status).toBe(200);
             expect(BookingConfirmResponseSchema.parse(a.body)).toBeTruthy();
             expect(BookingConfirmResponseSchema.parse(b.body)).toBeTruthy();
             expect(b.body.idempotent).toBeUndefined();

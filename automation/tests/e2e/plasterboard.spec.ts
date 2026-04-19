@@ -3,9 +3,7 @@ import bookingData from '../../test-data/booking/booking.json';
 
 const MS = {
     page: 15_000,
-    toast: 10_000,
     button: 20_000,
-    grid: 15_000,
 } as const;
 
 // ═══════════════════════════════════════════════════════════════

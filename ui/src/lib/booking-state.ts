@@ -80,8 +80,11 @@ export function bookingReducer(
         heavyWaste: action.heavyWaste,
         plasterboard: action.plasterboard,
         plasterboardOption: action.plasterboardOption,
-        skips: [],
-        selectedSkipSize: null,
+        // NOTE: downstream skip selection is deliberately NOT cleared here.
+        // If the user revisits step 2 and changes waste flags after already
+        // picking a skip, the previous `selectedSkipSize` leaks into the
+        // review step — including when the new waste constraints would
+        // disable that skip. Tracked as BUG-1 in bug-reports.md.
       };
     case "set-skips":
       return { ...state, skips: action.skips };

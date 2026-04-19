@@ -333,9 +333,9 @@ export class BookingPage extends BasePage {
         await expect(this.postcodeEmptyState).toBeVisible({
             timeout: UI_WAIT.lookup,
         });
-        await expect(
-            this.page.getByRole('heading', { name: /No addresses found/ }),
-        ).toBeVisible();
+        await expect(this.postcodeEmptyState).toContainText(
+            /No addresses found/,
+        );
     }
 
     /**
